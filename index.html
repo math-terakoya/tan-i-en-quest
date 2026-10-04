@@ -867,17 +867,15 @@ function draw() {
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.45)';
   // 目盛り（1/2・√2/2・√3/2・1）
+  // 目盛りの数字は 1 と −1 だけ（1/2・√3/2 などを書くと、座標を聞く問題の答えを見せてしまう）
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  const ticks = [[0.5, '1', '2'], [Math.SQRT2 / 2, '√2', '2'], [Math.sqrt(3) / 2, '√3', '2'], [1, '1', '']];
-  // となりどうしが重ならないように、√2/2 と 1 は反対がわ（x軸は上、y軸は左）に置く
-  ticks.forEach(([v, nu, de], i) => {
+  for (const v of [1, -1]) {
+    const t = v > 0 ? '1' : '−1';
     ctx.beginPath(); ctx.moveTo(X(g, v), g.cy - 3 * d); ctx.lineTo(X(g, v), g.cy + 3 * d); ctx.stroke();
-    tickLabel(ctx, d, nu, de, X(g, v), i % 2 ? g.cy - 5 * d : g.cy + 5 * d, i % 2 ? 'bottom-center' : 'top-center');
-  });
-  ticks.forEach(([v, nu, de], i) => {
+    tickLabel(ctx, d, t, '', X(g, v) + (v > 0 ? -7 : 7) * d, g.cy + 5 * d, 'top-center');
     ctx.beginPath(); ctx.moveTo(g.cx - 3 * d, Y(g, v)); ctx.lineTo(g.cx + 3 * d, Y(g, v)); ctx.stroke();
-    tickLabel(ctx, d, nu, de, i % 2 ? g.cx - 6 * d : g.cx + 6 * d, Y(g, v), i % 2 ? 'middle-right' : 'middle-left');
-  });
+    tickLabel(ctx, d, t, '', g.cx - 6 * d, Y(g, v) + (v > 0 ? 8 : -8) * d, 'middle-right');
+  }
   ctx.font = 'italic ' + (12 * d) + 'px serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
   ctx.fillText('x', g.W - 4 * d, g.cy + 3 * d);
   ctx.textAlign = 'left'; ctx.fillText('y', g.cx + 4 * d, 3 * d);
