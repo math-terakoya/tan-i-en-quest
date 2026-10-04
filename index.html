@@ -839,6 +839,15 @@ function draw() {
   // 軸
   ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1 * d;
   ctx.beginPath(); ctx.moveTo(0, g.cy); ctx.lineTo(g.W, g.cy); ctx.moveTo(g.cx, 0); ctx.lineTo(g.cx, g.W); ctx.stroke();
+  // x ＝ ±1/2、y ＝ ±1/2 の薄い線（π/6・π/3 の点がこの上にのる）
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1 * d;
+  ctx.beginPath();
+  for (const v of [-0.5, 0.5]) {
+    ctx.moveTo(X(g, v), Y(g, 1)); ctx.lineTo(X(g, v), Y(g, -1));
+    ctx.moveTo(X(g, -1), Y(g, v)); ctx.lineTo(X(g, 1), Y(g, v));
+  }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
   // 目盛り（1/2・√2/2・√3/2・1）
   ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = (9 * d) + 'px sans-serif';
   const ticks = [[0.5, '1/2'], [Math.SQRT2 / 2, '√2/2'], [Math.sqrt(3) / 2, '√3/2'], [1, '1']];
