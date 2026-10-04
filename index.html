@@ -148,6 +148,12 @@ min-height: 44px; touch-action: manipulation;
 .key.pulse { animation: pulse 0.9s ease-in-out infinite; }
 @keyframes pulse { 50% { background: #ffff00; color: #000; border-color: #ffff00; box-shadow: 0 0 0 3px #ffff00; } }
 
+/* — TeX 風の分数と根号（外から読み込まずに描く） — */
+.fr { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; font-size: 0.78em; line-height: 1.08; margin: 0 2px; }
+.fr > .nu { border-bottom: 1.5px solid currentColor; padding: 0 3px 1px; }
+.fr > .de { padding: 1px 3px 0; }
+.rt { white-space: nowrap; }
+.rad { border-top: 1.5px solid currentColor; padding: 0 1px; margin-left: -1px; }
 /* — チュートリアルの指 — */
 /* 輪の中心が left/top（点の位置）に来て、指と文字はその下 */
 #tapHint { position: absolute; z-index: 5; pointer-events: none; transform: translate(-50%, 0); padding-top: 20px; text-align: center; }
@@ -402,7 +408,8 @@ function genPrm(lv, kind, rng, opt) {
   }
   if (lv === 2) {
     if (kind === 'rev') return { mode: 'quad', fn: pick(rng, ['sin', 'cos']), s: rng() < 0.5 ? 1 : -1 };
-    if (rng() < 0.6) return { mode: 'sign', fn: pick(rng, ['sin', 'cos', 'tan']), u: pick(rng, OFF_AXIS) };
+    if (opt.form === 'quad') return { mode: 'quad', fn: pick(rng, ['sin', 'cos', 'tan']), s: rng() < 0.5 ? 1 : -1 };
+    if (opt.form === 'sign' || rng() < 0.6) return { mode: 'sign', fn: pick(rng, ['sin', 'cos', 'tan']), u: pick(rng, OFF_AXIS) };
     return { mode: 'quad', fn: pick(rng, ['sin', 'cos', 'tan']), s: rng() < 0.5 ? 1 : -1 };
   }
   if (lv === 3) return kind === 'rev' ? { mode: 'coord', u: pick(rng, OFF_AXIS) }
@@ -501,9 +508,9 @@ function build(lv, kind, prm, rng) {
   };
   const R = {
     pos: '▼ この 点の 角は？', quad: '▼ ぬられた しょうげんは？', coord: '▼ この 点の 座標は？',
-    eq: '▼ この 点を あらわす 方程式は？（0 ≦ θ ＜ 2π）', ineq: '▼ この 弧を あらわす 不等式は？（0 ≦ θ ＜ 2π）',
+    eq: '▼ この 点の 方程式は？', ineq: '▼ この 弧の 不等式は？',
   };
-  if (kind === 'rev') { p.label = R[q.mode]; p.display = '？'; }
+  if (kind === 'rev') { p.label = R[q.mode]; p.display = q.mode === 'eq' || q.mode === 'ineq' ? '？　（0 ≦ θ ＜ 2π）' : '？'; }
   else { [p.label, p.display] = L[q.mode](); }
   p.reason = reasonLines(p);
   return p;
@@ -659,14 +666,16 @@ const LEVELS = [
   { lv: 5, name: 'ハンエン', sprite: '🌗' },
   { lv: 'BOSS', name: 'エンノヌシ', sprite: '🌕', boss: true },
 ];
+// LV2 は逆向きを出さない（象限 → 式 は選択肢がふえるので）。かわりに ＋− と 象限タップ を1戦ずつ
 function makeSlots(level, rng, ctx) {
+  if (level.lv === 2) return shuffle(rng, [{ lv: 2, kind: 'fwd', form: 'sign' }, { lv: 2, kind: 'fwd', form: 'quad' }]);
   if (!level.boss) {
     const rev = ri(rng, 0, BATTLES - 1);
     return [...Array(BATTLES).keys()].map(i => ({ lv: level.lv, kind: i === rev ? 'rev' : 'fwd' }));
   }
   const weak = ctx ? Object.keys(ctx.weak).map(Number) : [];
   const lvs = shuffle(rng, shuffle(rng, weak).concat(shuffle(rng, [1, 2, 3, 4, 5].filter(v => !weak.includes(v)))).slice(0, BOSS_HP));
-  const revIdx = shuffle(rng, [...Array(BOSS_HP).keys()]).slice(0, 2);
+  const revIdx = shuffle(rng, [...Array(BOSS_HP).keys()].filter(i => lvs[i] !== 2)).slice(0, 2);
   return lvs.map((lv, i) => ({ lv, kind: revIdx.includes(i) ? 'rev' : 'fwd', boss: true }));
 }
 function newContext() { return { recent: [], weak: {}, log: [] }; }
@@ -676,7 +685,7 @@ function makeProblem(slot, ctx, rng) {
   do {
     let prm, target = false;
     for (let i = 0; i < 300; i++) {
-      prm = genPrm(slot.lv, slot.kind, rng, { boss: !!slot.boss });
+      prm = genPrm(slot.lv, slot.kind, rng, { boss: !!slot.boss, form: slot.form });
       if (!w) break;
       if (likeOK(prm, w.like, w.types)) { target = true; break; }
     }
@@ -740,6 +749,14 @@ const state = {
   onNext: null,
 };
 function level() { return LEVELS[state.levelIdx]; }
+// 式の文字を TeX 風の HTML にする。stacked のときは a/b を上下に積む。√ の中身には上に線
+function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function rootHTML(t) { return t.replace(/√(\d+)/g, '<span class="rt">√<span class="rad">$1</span></span>'); }
+function mathHTML(text, stacked) {
+  let h = esc(text);
+  if (stacked) h = h.replace(/(\d*(?:√\d+)?\d*π?)\/(\d+)/g, (m, nu, de) => (nu ? '<span class="fr"><span class="nu">' + nu + '</span><span class="de">' + de + '</span></span>' : m));
+  return rootHTML(h);
+}
 const p = () => state.problem;
 const tapMode = q => !!q && !q.options && (q.mode === 'pos' || q.mode === 'quad' || q.mode === 'eq' || q.mode === 'ineq');
 
@@ -764,7 +781,7 @@ function renderEnemy() {
   monsterEl.className = lv.boss ? 'boss' : '';
   $('monsterName').textContent = lv.name;
 }
-function renderProblem() { $('problemLabel').textContent = p().label; $('problemExpr').textContent = p().display; }
+function renderProblem() { $('problemLabel').textContent = p().label; $('problemExpr').innerHTML = mathHTML(p().display, true); }
 function show(el, on) { el.classList.toggle('hidden', !on); }
 function renderControls() {
   const q = p();
@@ -773,7 +790,8 @@ function renderControls() {
   optBtns.forEach((b, i) => {
     show(b, hasOpt);
     if (!hasOpt) return;
-    b.textContent = q.options[i].text;
+    b.innerHTML = mathHTML(q.options[i].text, true);
+    b.dataset.text = q.options[i].text;
     b.classList.toggle('on', state.opt === i && !state.reveal);
     b.classList.toggle('right', state.reveal && q.options[i].correct);
     b.classList.toggle('wrong', state.reveal && state.opt === i && !q.options[i].correct);
@@ -812,7 +830,7 @@ function ready() {
   if (q.mode === 'quad') return state.sel.quads.length > 0;
   if (q.mode === 'ineq') return state.sel.arcs.length > 0 && !!state.choice;
 }
-function setMessage(text) { $('msgText').textContent = text; $('message').scrollTop = 0; }
+function setMessage(text) { $('msgText').innerHTML = mathHTML(text, false); $('message').scrollTop = 0; }
 
 // ---------- 単位円を描く ----------
 let S = 300, DPR = 1;
@@ -849,17 +867,16 @@ function draw() {
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.45)';
   // 目盛り（1/2・√2/2・√3/2・1）
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = (9 * d) + 'px sans-serif';
-  const ticks = [[0.5, '1/2'], [Math.SQRT2 / 2, '√2/2'], [Math.sqrt(3) / 2, '√3/2'], [1, '1']];
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ticks.forEach(([v, s], i) => {
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  const ticks = [[0.5, '1', '2'], [Math.SQRT2 / 2, '√2', '2'], [Math.sqrt(3) / 2, '√3', '2'], [1, '1', '']];
+  // となりどうしが重ならないように、√2/2 と 1 は反対がわ（x軸は上、y軸は左）に置く
+  ticks.forEach(([v, nu, de], i) => {
     ctx.beginPath(); ctx.moveTo(X(g, v), g.cy - 3 * d); ctx.lineTo(X(g, v), g.cy + 3 * d); ctx.stroke();
-    ctx.fillText(s, X(g, v), g.cy + (i % 2 ? 14 : 4) * d);
+    tickLabel(ctx, d, nu, de, X(g, v), i % 2 ? g.cy - 5 * d : g.cy + 5 * d, i % 2 ? 'bottom-center' : 'top-center');
   });
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ticks.forEach(([v, s]) => {
+  ticks.forEach(([v, nu, de], i) => {
     ctx.beginPath(); ctx.moveTo(g.cx - 3 * d, Y(g, v)); ctx.lineTo(g.cx + 3 * d, Y(g, v)); ctx.stroke();
-    ctx.fillText(s, g.cx + 5 * d, Y(g, v));
+    tickLabel(ctx, d, nu, de, i % 2 ? g.cx - 6 * d : g.cx + 6 * d, Y(g, v), i % 2 ? 'middle-right' : 'middle-left');
   });
   ctx.font = 'italic ' + (12 * d) + 'px serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
   ctx.fillText('x', g.W - 4 * d, g.cy + 3 * d);
@@ -880,6 +897,32 @@ function draw() {
   if (q) drawMarks(ctx, g, q);
 }
 
+// 目盛りの字：nu/de を上下に積み、√ の中身に屋根をかける（de が空なら1行）
+function tickLabel(ctx, d, nu, de, x, y, pos) {
+  ctx.font = (9 * d) + 'px sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  const w = Math.max(ctx.measureText(nu).width, ctx.measureText(de).width) + 2 * d;
+  const lh = 9 * d;
+  const h = de ? lh * 2 + 2 * d : lh;
+  const left = pos.endsWith('center') ? x - w / 2 : pos === 'middle-right' ? x - w : x;
+  const top = pos === 'top-center' ? y : pos === 'bottom-center' ? y - h : y - h / 2;
+  const line = (t, cy) => {
+    const tw = ctx.measureText(t).width, tx = left + (w - tw) / 2;
+    ctx.textAlign = 'left';
+    ctx.fillText(t, tx, cy);
+    if (t.startsWith('√')) {   // √ の中身の上に線
+      const rw = ctx.measureText('√').width;
+      ctx.beginPath(); ctx.moveTo(tx + rw * 0.85, cy - lh * 0.85); ctx.lineTo(tx + tw + 1 * d, cy - lh * 0.85); ctx.stroke();
+    }
+  };
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.9 * d;
+  line(nu, top + lh * 0.85);
+  if (de) {
+    ctx.beginPath(); ctx.moveTo(left, top + lh + 1 * d); ctx.lineTo(left + w, top + lh + 1 * d); ctx.stroke();
+    line(de, top + lh * 2 + 1.5 * d);
+  }
+  ctx.restore();
+}
 // どの図を出すか：'ask' 問題中 | 'ans' ただしい ず | 'mine' じぶんの こたえ
 function viewKind() {
   const q = p();
@@ -888,11 +931,11 @@ function viewKind() {
   if (state.reveal && !(state.phase === 'next' && state.view === 'mine')) return 'ans';
   return state.reveal ? 'mine' : 'ask';
 }
+// 象限は平面の4分の1（円の中だけではない）。画面の4分の1全体を塗る
 function sector(ctx, g, qd, color) {
   ctx.fillStyle = color;
-  ctx.beginPath(); ctx.moveTo(g.cx, g.cy);
-  ctx.arc(g.cx, g.cy, g.r, -(qd - 1) * Math.PI / 2, -qd * Math.PI / 2, true);
-  ctx.closePath(); ctx.fill();
+  const x0 = qd === 1 || qd === 4 ? g.cx : 0, y0 = qd === 1 || qd === 2 ? 0 : g.cy;
+  ctx.fillRect(x0, y0, g.W / 2, g.W / 2);
 }
 function arcPath(ctx, g, from, to, color, width) {
   ctx.strokeStyle = color; ctx.lineWidth = width * g.d; ctx.lineCap = 'round';
@@ -909,7 +952,7 @@ function guideLine(ctx, g, q, color) {
 function drawProblem(ctx, g, q) {
   const vk = viewKind(), m = q.prm;
   const fillQuads = vk === 'ask' || vk === 'mine' ? state.sel.quads : (q.answer && q.answer.quads) || [];
-  if (q.mode === 'quad') fillQuads.forEach(qd => sector(ctx, g, qd, vk === 'ans' ? 'rgba(150,118,0,0.85)' : 'rgba(30,90,210,0.85)'));
+  if (q.mode === 'quad') fillQuads.forEach(qd => sector(ctx, g, qd, vk === 'ans' ? 'rgba(150,118,0,0.75)' : 'rgba(30,90,210,0.75)'));
   if (state.tut && state.tut.step === 'tap' && state.blinkOn) tutBlink(ctx, g, q);
   if (q.mode === 'ineq') {
     guideLine(ctx, g, m, vk === 'ask' && !q.options ? 'rgba(200,200,200,0.8)' : 'rgba(255,255,255,0.85)');
