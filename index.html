@@ -645,7 +645,7 @@ function likeOK(q, m, types) {
     if (t === 'swap' && q.fn !== m.fn) return false;
     if (t === 'sign') {
       if ((q.mode === 'sign' || q.mode === 'val' || q.mode === 'coord') && quadrant(q.u) !== quadrant(m.u)) return false;
-      if (q.mode === 'quad' && (q.fn !== m.fn || q.s !== m.s)) return false;
+      if (q.mode === 'quad' && q.fn !== m.fn) return false;   // 符号まで同じだと同じ問題になるので、関数だけそろえる
       if (q.mode === 'eq' && (q.v.k === 0 || q.v.s !== m.v.s)) return false;
     }
     if (t === 'half' && (q.fn !== m.fn || solutions(q.fn, q.v).length !== 2)) return false;
@@ -678,23 +678,32 @@ function makeSlots(level, rng, ctx) {
   const revIdx = shuffle(rng, [...Array(BOSS_HP).keys()].filter(i => lvs[i] !== 2)).slice(0, 2);
   return lvs.map((lv, i) => ({ lv, kind: revIdx.includes(i) ? 'rev' : 'fwd', boss: true }));
 }
-function newContext() { return { recent: [], weak: {}, log: [] }; }
+function newContext() { return { recent: [], recentFig: [], weak: {}, log: [] }; }
+// 問題の「中身」：向き（式 → 図／図 → 式）がちがっても、同じ点・同じ弧なら同じ中身
+function figKey(prm) {
+  if (prm.mode === 'eq') return 'pts:' + solutions(prm.fn, prm.v).join(',');
+  if (prm.mode === 'ineq') return 'arc:' + prm.fn + valStr(prm.v);
+  if (prm.mode === 'quad') return 'quad:' + prm.fn + prm.s;
+  return 'u:' + mod24(prm.u);
+}
+// 直前と同じ問題・同じ中身は出さない。苦手の条件に合う問題がそれで作れないときは、ふつうの問題にする
 function makeProblem(slot, ctx, rng) {
   const w = ctx.weak[slot.lv];
-  let p, tries = 0;
-  do {
-    let prm, target = false;
-    for (let i = 0; i < 300; i++) {
-      prm = genPrm(slot.lv, slot.kind, rng, { boss: !!slot.boss, form: slot.form });
-      if (!w) break;
-      if (likeOK(prm, w.like, w.types)) { target = true; break; }
-    }
-    p = build(slot.lv, slot.kind, prm, rng);
-    p.target = { lv: target };
-    p.key = slot.kind + JSON.stringify(prm);
-  } while (ctx.recent.includes(p.key) && ++tries < 20);
+  const fresh = prm => !ctx.recentFig.includes(figKey(prm)) && !ctx.recent.includes(slot.kind + JSON.stringify(prm));
+  const gen = () => genPrm(slot.lv, slot.kind, rng, { boss: !!slot.boss, form: slot.form });
+  let prm = null, target = false;
+  if (w) {
+    for (let i = 0; i < 400 && !prm; i++) { const c = gen(); if (likeOK(c, w.like, w.types) && fresh(c)) { prm = c; target = true; } }
+  }
+  for (let i = 0; i < 400 && !prm; i++) { const c = gen(); if (fresh(c)) prm = c; }
+  if (!prm) prm = gen();
+  const p = build(slot.lv, slot.kind, prm, rng);
+  p.target = { lv: target };
+  p.key = slot.kind + JSON.stringify(prm);
   ctx.recent.push(p.key);
   if (ctx.recent.length > 8) ctx.recent.shift();
+  ctx.recentFig.push(figKey(prm));   // 直前の2問と同じ中身は出さない（表と裏が続かないように）
+  if (ctx.recentFig.length > 2) ctx.recentFig.shift();
   return p;
 }
 function record(ctx, p, ok, cls, ms) {
@@ -713,7 +722,7 @@ function record(ctx, p, ok, cls, ms) {
 
 G.UnitCore = {
   PTS, OFF_AXIS, angStr, valStr, valNum, V, cosV, sinV, fnV, signOf, quadrant, solutions, quadsOf,
-  arcBounds, arcOf, arcSat, genPrm, build, judge, classify, describe, masterText, likeOK,
+  arcBounds, arcOf, arcSat, genPrm, build, figKey, judge, classify, describe, masterText, likeOK,
   LEVELS, BATTLES, BOSS_HP, makeSlots, newContext, makeProblem, record, mulberry32, mod24,
 };
 })(typeof window !== 'undefined' ? window : this);
