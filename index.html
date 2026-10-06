@@ -238,7 +238,7 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
     <p style="margin-top:24px;">えんの うえの ばしょを みきわめ<br>モンスターを うちたおせ！</p>
     <button class="start-btn" id="startBtn">▶ はじめる</button>
     <button class="how-btn" id="howBtn">？ あそびかた</button>
-    <p class="sub" style="margin-top:20px;font-size:10px;">LV1〜LV5（各2戦）→ BOSS（4戦）</p>
+    <p class="sub" style="margin-top:20px;font-size:10px;">LV1〜LV5（各1戦）→ BOSS（3戦）</p>
   </div>
 
   <div class="overlay hidden" id="tutDoneScreen">
@@ -656,8 +656,10 @@ function likeOK(q, m, types) {
 }
 
 // ---------- ステージ ----------
-const BATTLES = 2;
-const BOSS_HP = 4;
+// 授業の感想（問題数が多い）から：LV は各1戦、BOSS は3戦（全8問）
+const BATTLES = 1;
+const BOSS_HP = 3;
+const BOSS_REV = 1;   // BOSS の逆向きの数
 const LEVELS = [
   { lv: 1, name: 'メグリ', sprite: '🌀' },
   { lv: 2, name: 'ウラオモテ', sprite: '🎭' },
@@ -668,14 +670,15 @@ const LEVELS = [
 ];
 // LV2 は逆向きを出さない（象限 → 式 は選択肢がふえるので）。かわりに ＋− と 象限タップ を1戦ずつ
 function makeSlots(level, rng, ctx) {
-  if (level.lv === 2) return shuffle(rng, [{ lv: 2, kind: 'fwd', form: 'sign' }, { lv: 2, kind: 'fwd', form: 'quad' }]);
+  // LV2 は「＋か−か」と「象限タップ」のどちらか（逆向きなし）。ほかの LV は 順方向か逆向きの どちらか
+  if (level.lv === 2) return shuffle(rng, [{ lv: 2, kind: 'fwd', form: 'sign' }, { lv: 2, kind: 'fwd', form: 'quad' }]).slice(0, BATTLES);
   if (!level.boss) {
-    const rev = ri(rng, 0, BATTLES - 1);
+    const rev = ri(rng, 0, BATTLES);   // BATTLES のときは 逆向きなし（1戦なら 半々）
     return [...Array(BATTLES).keys()].map(i => ({ lv: level.lv, kind: i === rev ? 'rev' : 'fwd' }));
   }
   const weak = ctx ? Object.keys(ctx.weak).map(Number) : [];
   const lvs = shuffle(rng, shuffle(rng, weak).concat(shuffle(rng, [1, 2, 3, 4, 5].filter(v => !weak.includes(v)))).slice(0, BOSS_HP));
-  const revIdx = shuffle(rng, [...Array(BOSS_HP).keys()].filter(i => lvs[i] !== 2)).slice(0, 2);
+  const revIdx = shuffle(rng, [...Array(BOSS_HP).keys()].filter(i => lvs[i] !== 2)).slice(0, BOSS_REV);
   return lvs.map((lv, i) => ({ lv, kind: revIdx.includes(i) ? 'rev' : 'fwd', boss: true }));
 }
 function newContext() { return { recent: [], recentFig: [], weak: {}, log: [] }; }
