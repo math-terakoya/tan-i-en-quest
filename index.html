@@ -106,6 +106,9 @@ background: #000; color: #aaa; border: 1px solid #666;
 font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer;
 }
 #skipTut.hidden { display: none; }
+#problem .expr.long { font-size: 15px; }
+#problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; }
+#ruleBtn { display: block; margin: 3px auto 0; white-space: nowrap; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 2; }
 
 #planeWrap { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
 #plane {
@@ -254,6 +257,19 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
     <button class="start-btn" id="goBtn">▶ ぼうけんへ</button>
   </div>
 
+  <div class="overlay hidden" id="ruleScreen">
+    <div class="hero">📏</div>
+    <h1 style="font-size:20px;">この ゲームの 約束</h1>
+    <div class="points">
+      <div>・θ は、x軸の 正の 向きから はかった 角</div>
+      <div>・はんとけいまわりが ＋、とけいまわりが −</div>
+      <div>・「θ の 点」は、θ の 動径と 単位円の 交わる 点</div>
+      <div>・点の 座標は（cosθ, sinθ）</div>
+      <div>・「〜と なる 点」「〜と なる 弧」は、その 式を みたす θ の 点</div>
+    </div>
+    <button class="start-btn" id="ruleClose">▶ もどる</button>
+  </div>
+
   <div class="overlay hidden" id="endingScreen">
     <div class="hero">👑</div>
     <h1>GAME CLEAR!</h1>
@@ -281,7 +297,7 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
 
   <div class="rpg-window" id="battle">
     <button id="skipTut" class="hidden">とばす ▶▶</button>
-    <div id="enemy"><div id="monster">🌀</div><div id="monsterName">メグリ</div></div>
+    <div id="enemy"><div id="monster">🌀</div><div id="monsterName">メグリ</div><button id="ruleBtn">？ やくそく</button></div>
     <div id="problem">
       <div class="label" id="problemLabel">&nbsp;</div>
       <div class="expr" id="problemExpr">&nbsp;</div>
@@ -408,9 +424,9 @@ function genPrm(lv, kind, rng, opt) {
   }
   if (lv === 2) {
     if (kind === 'rev') return { mode: 'quad', fn: pick(rng, ['sin', 'cos']), s: rng() < 0.5 ? 1 : -1 };
-    if (opt.form === 'quad') return { mode: 'quad', fn: pick(rng, ['sin', 'cos', 'tan']), s: rng() < 0.5 ? 1 : -1 };
-    if (opt.form === 'sign' || rng() < 0.6) return { mode: 'sign', fn: pick(rng, ['sin', 'cos', 'tan']), u: pick(rng, OFF_AXIS) };
-    return { mode: 'quad', fn: pick(rng, ['sin', 'cos', 'tan']), s: rng() < 0.5 ? 1 : -1 };
+    // 象限 → 符号 の向きだけ（「sinθ ＞ 0 の 象限」は 扇形・弧の 話に なるので LV5 に まかせる）
+    if (opt.form === 'qsign' || (opt.form !== 'sign' && rng() < 0.5)) return { mode: 'qsign', fn: pick(rng, ['sin', 'cos', 'tan']), q: ri(rng, 1, 4) };
+    return { mode: 'sign', fn: pick(rng, ['sin', 'cos', 'tan']), u: pick(rng, OFF_AXIS) };
   }
   if (lv === 3) return kind === 'rev' ? { mode: 'coord', u: pick(rng, OFF_AXIS) }
                                       : { mode: 'val', fn: pick(rng, ['sin', 'cos']), u: pick(rng, OFF_AXIS) };
@@ -485,7 +501,7 @@ function makeOptions(p, rng) {
   return shuffle(rng, out.map((c, i) => ({ text: c.text, key: c.key, types: c.types, correct: i === 0 })));
 }
 
-function build(lv, kind, prm, rng) {
+function build(lv, kind, prm, rng, opt = {}) {
   const p = { lv, kind, prm, mode: prm.mode };
   const q = prm;
   if (kind === 'rev' || q.mode === 'val') {
@@ -494,25 +510,50 @@ function build(lv, kind, prm, rng) {
   // 正解
   if (q.mode === 'pos') p.answer = { pts: [q.u] };
   if (q.mode === 'sign') p.answer = { sign: signOf(q.fn, q.u) };
+  if (q.mode === 'qsign') p.answer = { sign: signOf(q.fn, q.q * 6 - 3) };
   if (q.mode === 'quad') p.answer = { quads: quadsOf(q.fn, q.s) };
   if (q.mode === 'eq') p.answer = { pts: solutions(q.fn, q.v) };
   if (q.mode === 'ineq') p.answer = { arcs: [0, 1].filter(i => arcSat(q.fn, q.v, q.s, i)), strict: q.strict };
   // 問題の文
+  // LV：短い言い方（「θ の 点」＝ θ の 動径と 単位円の 交点。約束ごとは ？ボタン）
   const L = {
-    pos: () => ['▼ 点を えらべ', angStr(q.t) + ' は どこ？'],
+    pos: () => ['▼ 点を えらべ', 'θ ＝ ' + angStr(q.t) + ' の 点は どこ？'],
     sign: () => ['▼ ＋？ −？', fnStr(q.fn, q.u) + ' は ＋？ −？'],
-    quad: () => ['▼ しょうげんを ぜんぶ えらべ', quadStr(q.fn, q.s) + ' の しょうげん'],
+    qsign: () => ['▼ ＋？ −？', 'θ が 第' + q.q + '象限の とき ' + q.fn + 'θ は ＋？−？'],
     val: () => ['▼ あたいは？', fnStr(q.fn, q.u) + ' ＝ ？'],
-    eq: () => ['▼ 0 ≦ θ ＜ 2π で とけ', eqStr(q.fn, q.v)],
-    ineq: () => ['▼ 0 ≦ θ ＜ 2π で とけ', ineqStr(q.fn, q.v, q.s, q.strict)],
+    eq: () => ['▼ 点を ぜんぶ えらべ', eqStr(q.fn, q.v) + ' と なる 点を ぜんぶ'],
+    ineq: () => ['▼ 弧と はしの ●○', ineqStr(q.fn, q.v, q.s, q.strict) + ' と なる 弧は？'],
   };
   const R = {
-    pos: '▼ この 点の 角は？', quad: '▼ ぬられた しょうげんは？', coord: '▼ この 点の 座標は？',
-    eq: '▼ この 点の 方程式は？', ineq: '▼ この 弧の 不等式は？',
+    pos: ['▼ この 点の θ は？', '？　（0 ≦ θ ＜ 2π）'], coord: ['▼ この 点の 座標は？', '？'],
+    eq: ['▼ この 点に なる 式は？', '？'], ineq: ['▼ この 弧に なる 式は？', '？'], quad: ['▼ ぬられた しょうげんは？', '？'],
   };
-  if (kind === 'rev') { p.label = R[q.mode]; p.display = q.mode === 'eq' || q.mode === 'ineq' ? '？　（0 ≦ θ ＜ 2π）' : '？'; }
-  else { [p.label, p.display] = L[q.mode](); }
+  const short = kind === 'rev' ? R[q.mode] : L[q.mode]();
+  [p.label, p.display] = short;
+  // BOSS：問題集・模試の言い回し（いくつかの言い方から1つ）
+  if (opt.boss) {
+    const E = {
+      pos: () => ['角 ' + angStr(q.t) + ' の 動径を 図示せよ。', '角 ' + angStr(q.t) + ' の 動径と 単位円の 交点 P の 位置を 答えよ。'],
+      sign: () => [fnStr(q.fn, q.u) + ' の 符号を 答えよ。', fnStr(q.fn, q.u) + ' の 値の 符号を 答えよ。'],
+      qsign: () => ['θ が 第' + q.q + '象限の 角の とき、' + q.fn + 'θ の 符号を 答えよ。', '第' + q.q + '象限の 角 θ に ついて、' + q.fn + 'θ の 符号を 答えよ。'],
+      val: () => [fnStr(q.fn, q.u) + ' の 値を 求めよ。', '次の 値を 求めよ。　' + fnStr(q.fn, q.u)],
+      eq: () => ['0 ≦ θ ＜ 2π の とき、方程式 ' + eqStr(q.fn, q.v) + ' を 解け。', '0 ≦ θ ＜ 2π の 範囲で、' + eqStr(q.fn, q.v) + ' を 満たす θ の 値を 求めよ。'],
+      ineq: () => ['0 ≦ θ ＜ 2π の とき、不等式 ' + ineqStr(q.fn, q.v, q.s, q.strict) + ' を 解け。', '0 ≦ θ ＜ 2π の 範囲で、' + ineqStr(q.fn, q.v, q.s, q.strict) + ' を 満たす θ の 値の 範囲を 求めよ。'],
+    };
+    const ER = {
+      pos: ['図の 点 P は、角 θ（0 ≦ θ ＜ 2π）の 動径と 単位円の 交点 で ある。θ を 求めよ。'],
+      coord: ['単位円 上の 点 P が 図の 位置に ある。P の 座標を 求めよ。'],
+      eq: ['0 ≦ θ ＜ 2π で、解が 図の 点 と なる 方程式を 選べ。'],
+      ineq: ['0 ≦ θ ＜ 2π で、解が 図の 弧 と なる 不等式を 選べ。'],
+    };
+    const list = kind === 'rev' ? ER[q.mode] : E[q.mode]();
+    p.label = '▼ 問題集の ことばで';
+    p.display = list[Math.floor(rng() * list.length)];
+    p.exam = true;
+    p.shortText = short[1] === '？' || short[1].startsWith('？') ? short[0].replace('▼ ', '') : short[1];
+  }
   p.reason = reasonLines(p);
+  if (p.exam) p.reason.push('この 問題は LV' + lv + ' の「' + p.shortText + '」と おなじ');
   return p;
 }
 
@@ -522,7 +563,7 @@ function judge(p, ans) {
   if (p.options) return p.options[ans.opt].correct;
   const A = p.answer;
   if (p.mode === 'pos' || p.mode === 'eq') return sameSet(ans.pts, A.pts);
-  if (p.mode === 'sign') return ans.sign === A.sign;
+  if (p.mode === 'sign' || p.mode === 'qsign') return ans.sign === A.sign;
   if (p.mode === 'quad') return sameSet(ans.quads, A.quads);
   if (p.mode === 'ineq') return sameSet(ans.arcs, A.arcs) && ans.strict === A.strict;
 }
@@ -542,8 +583,9 @@ function classify(p, ans) {
     if (u % 6 === 3 && c === mod24(12 - u)) return { types: ['quad'] };
     return { types: ['scatter'] };
   }
-  if (p.mode === 'sign') {
-    if (q.fn !== 'tan' && signOf(other(q.fn), q.u) === ans.sign) return { types: ['swap'] };
+  if (p.mode === 'sign' || p.mode === 'qsign') {
+    const u = p.mode === 'sign' ? q.u : q.q * 6 - 3;
+    if (q.fn !== 'tan' && signOf(other(q.fn), u) === ans.sign) return { types: ['swap'] };
     return { types: ['sign'] };
   }
   if (p.mode === 'quad') {
@@ -610,6 +652,12 @@ function reasonLines(p) {
     L.push(angStr(q.u) + ' は だい' + quadrant(q.u) + ' しょうげん → x は ' + SGN(cosV(q.u).s) + '、y は ' + SGN(sinV(q.u).s));
     L.push('→ ' + fnStr(q.fn, q.u) + ' は ' + SGN(signOf(q.fn, q.u)));
   }
+  if (q.mode === 'qsign') {
+    const u = q.q * 6 - 3;
+    L.push('cos は x座標、sin は y座標、tan は y ÷ x');
+    L.push('第' + q.q + '象限は x が ' + SGN(cosV(u).s) + '、y が ' + SGN(sinV(u).s));
+    L.push('→ ' + q.fn + 'θ は ' + SGN(signOf(q.fn, u)));
+  }
   if (q.mode === 'quad') {
     L.push(q.fn === 'tan' ? 'tan は y ÷ x → x と y が おなじ ふごうなら ＋' : q.fn + ' は ' + COORD[q.fn] + '座標');
     L.push(quadStr(q.fn, q.s) + ' → だい' + quadsOf(q.fn, q.s).join('・だい') + ' しょうげん');
@@ -623,7 +671,7 @@ function reasonLines(p) {
     const sol = solutions(q.fn, q.v);
     L.push((q.fn === 'sin' ? 'y ＝ ' + valStr(q.v) + ' の よこ線' : 'x ＝ ' + valStr(q.v) + ' の たて線') +
            'と 円の まじわる 点は ' + sol.length + 'つ');
-    L.push('→ θ ＝ ' + sol.map(angStr).join('、'));
+    L.push('→ θ ＝ ' + sol.map(angStr).join('、') + '（0 ≦ θ ＜ 2π の とき）');
   }
   if (q.mode === 'ineq') {
     const dir = q.fn === 'sin' ? (q.s > 0 ? 'うえ' : 'した') : (q.s > 0 ? 'みぎ' : 'ひだり');
@@ -645,6 +693,7 @@ function likeOK(q, m, types) {
     if (t === 'swap' && q.fn !== m.fn) return false;
     if (t === 'sign') {
       if ((q.mode === 'sign' || q.mode === 'val' || q.mode === 'coord') && quadrant(q.u) !== quadrant(m.u)) return false;
+      if (q.mode === 'qsign' && q.q !== m.q) return false;
       if (q.mode === 'quad' && q.fn !== m.fn) return false;   // 符号まで同じだと同じ問題になるので、関数だけそろえる
       if (q.mode === 'eq' && (q.v.k === 0 || q.v.s !== m.v.s)) return false;
     }
@@ -671,7 +720,7 @@ const LEVELS = [
 // LV2 は逆向きを出さない（象限 → 式 は選択肢がふえるので）。かわりに ＋− と 象限タップ を1戦ずつ
 function makeSlots(level, rng, ctx) {
   // LV2 は「＋か−か」と「象限タップ」のどちらか（逆向きなし）。ほかの LV は 順方向か逆向きの どちらか
-  if (level.lv === 2) return shuffle(rng, [{ lv: 2, kind: 'fwd', form: 'sign' }, { lv: 2, kind: 'fwd', form: 'quad' }]).slice(0, BATTLES);
+  if (level.lv === 2) return shuffle(rng, [{ lv: 2, kind: 'fwd', form: 'sign' }, { lv: 2, kind: 'fwd', form: 'qsign' }]).slice(0, BATTLES);
   if (!level.boss) {
     const rev = ri(rng, 0, BATTLES);   // BATTLES のときは 逆向きなし（1戦なら 半々）
     return [...Array(BATTLES).keys()].map(i => ({ lv: level.lv, kind: i === rev ? 'rev' : 'fwd' }));
@@ -687,6 +736,7 @@ function figKey(prm) {
   if (prm.mode === 'eq') return 'pts:' + solutions(prm.fn, prm.v).join(',');
   if (prm.mode === 'ineq') return 'arc:' + prm.fn + valStr(prm.v);
   if (prm.mode === 'quad') return 'quad:' + prm.fn + prm.s;
+  if (prm.mode === 'qsign') return 'qs:' + prm.fn + prm.q;
   return 'u:' + mod24(prm.u);
 }
 // 直前と同じ問題・同じ中身は出さない。苦手の条件に合う問題がそれで作れないときは、ふつうの問題にする
@@ -700,7 +750,7 @@ function makeProblem(slot, ctx, rng) {
   }
   for (let i = 0; i < 400 && !prm; i++) { const c = gen(); if (fresh(c)) prm = c; }
   if (!prm) prm = gen();
-  const p = build(slot.lv, slot.kind, prm, rng);
+  const p = build(slot.lv, slot.kind, prm, rng, { boss: !!slot.boss });
   p.target = { lv: target };
   p.key = slot.kind + JSON.stringify(prm);
   ctx.recent.push(p.key);
@@ -793,7 +843,12 @@ function renderEnemy() {
   monsterEl.className = lv.boss ? 'boss' : '';
   $('monsterName').textContent = lv.name;
 }
-function renderProblem() { $('problemLabel').textContent = p().label; $('problemExpr').innerHTML = mathHTML(p().display, true); }
+function renderProblem() {
+  $('problemLabel').textContent = p().label;
+  $('problemExpr').innerHTML = mathHTML(p().display, true);
+  $('problemExpr').classList.toggle('exam', !!p().exam);
+  $('problemExpr').classList.toggle('long', !p().exam && p().display.length > 18);   // 長い文は 少し小さく（1行に おさめる）
+}
 function show(el, on) { el.classList.toggle('hidden', !on); }
 function renderControls() {
   const q = p();
@@ -808,15 +863,15 @@ function renderControls() {
     b.classList.toggle('right', state.reveal && q.options[i].correct);
     b.classList.toggle('wrong', state.reveal && state.opt === i && !q.options[i].correct);
   });
-  const ch = !!q && !q.options && (q.mode === 'sign' || q.mode === 'ineq');
+  const ch = !!q && !q.options && (q.mode === 'sign' || q.mode === 'qsign' || q.mode === 'ineq');
   show($('ch0'), ch); show($('ch1'), ch);
   if (ch) {
-    if (q.mode === 'sign') { $('ch0').textContent = '＋'; $('ch1').textContent = '−'; }
+    if (q.mode === 'sign' || q.mode === 'qsign') { $('ch0').textContent = '＋'; $('ch1').textContent = '−'; }
     else {
       $('ch0').innerHTML = '● ふくむ<span class="eq">＝ あり</span>';
       $('ch1').innerHTML = '○ ふくまない<span class="eq">＝ なし</span>';
     }
-    const right = q.mode === 'sign' ? (q.answer.sign > 0 ? 'a' : 'b') : (q.answer.strict ? 'b' : 'a');
+    const right = q.mode === 'ineq' ? (q.answer.strict ? 'b' : 'a') : (q.answer.sign > 0 ? 'a' : 'b');
     ['a', 'b'].forEach((c, i) => {
       const el = $('ch' + i);
       el.classList.toggle('on', state.choice === c && !state.reveal);
@@ -837,7 +892,7 @@ function ready() {
   const q = p();
   if (!q || state.phase !== 'play') return false;
   if (q.options) return state.opt >= 0;
-  if (q.mode === 'sign') return !!state.choice;
+  if (q.mode === 'sign' || q.mode === 'qsign') return !!state.choice;
   if (q.mode === 'pos' || q.mode === 'eq') return state.sel.pts.length > 0;
   if (q.mode === 'quad') return state.sel.quads.length > 0;
   if (q.mode === 'ineq') return state.sel.arcs.length > 0 && !!state.choice;
@@ -962,6 +1017,7 @@ function guideLine(ctx, g, q, color) {
 function drawProblem(ctx, g, q) {
   const vk = viewKind(), m = q.prm;
   const fillQuads = vk === 'ask' || vk === 'mine' ? state.sel.quads : (q.answer && q.answer.quads) || [];
+  if (q.mode === 'qsign') sector(ctx, g, m.q, 'rgba(120,120,120,0.45)');   // 問われている 象限を うすく
   if (q.mode === 'quad') fillQuads.forEach(qd => sector(ctx, g, qd, vk === 'ans' ? 'rgba(150,118,0,0.75)' : 'rgba(30,90,210,0.75)'));
   if (state.tut && state.tut.step === 'tap' && state.blinkOn) tutBlink(ctx, g, q);
   if (q.mode === 'ineq') {
@@ -1076,6 +1132,7 @@ function showLevelUp() {
 
 // ---------- 進行 ----------
 const HINT = {
+  qsign: '＋ か − を えらんで けってい',
   pos: '点を タップ → けってい', sign: '＋ か − を えらんで けってい', quad: 'しょうげんを タップ（いくつでも）→ けってい',
   val: 'えらんで けってい', eq: 'あてはまる 点を ぜんぶ タップ → けってい', ineq: '弧を タップ → ● か ○ を えらんで けってい',
 };
@@ -1101,12 +1158,12 @@ function startLevel(idx) {
   monsterEl.classList.remove('dying');
   renderEnemy();
   newProblem();
-  setMessage((lv.boss ? 'エンノヌシが あらわれた！\nちからの かぎりを つくせ！' : lv.name + 'が　あらわれた！') + '\n' + hint());
+  setMessage((lv.boss ? 'エンノヌシが あらわれた！\nここからは 問題集の ことばで 出るぞ！' : lv.name + 'が　あらわれた！') + '\n' + hint());
 }
 function answerNow() {
   const q = p();
   if (q.options) return { opt: state.opt };
-  if (q.mode === 'sign') return { sign: state.choice === 'a' ? 1 : -1 };
+  if (q.mode === 'sign' || q.mode === 'qsign') return { sign: state.choice === 'a' ? 1 : -1 };
   if (q.mode === 'pos' || q.mode === 'eq') return { pts: state.sel.pts.slice() };
   if (q.mode === 'quad') return { quads: state.sel.quads.slice() };
   if (q.mode === 'ineq') return { arcs: state.sel.arcs.slice(), strict: state.choice === 'b' };
@@ -1315,6 +1372,8 @@ optBtns.forEach((b, i) => b.addEventListener('click', () => {
   state.choice = i ? 'b' : 'a'; renderControls(); draw();
 }));
 $('decideBtn').addEventListener('click', submit);
+$('ruleBtn').addEventListener('click', () => $('ruleScreen').classList.remove('hidden'));
+$('ruleClose').addEventListener('click', () => $('ruleScreen').classList.add('hidden'));
 $('nextBtn').addEventListener('click', next);
 $('mineBtn').addEventListener('click', () => { if (state.phase === 'next') { state.view = 'mine'; renderControls(); draw(); } });
 $('ansBtn').addEventListener('click', () => { if (state.phase === 'next') { state.view = 'ans'; renderControls(); draw(); } });
@@ -1332,7 +1391,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   e.preventDefault();
   if (e.repeat) return;
-  const overlayBtn = { titleScreen: 'startBtn', tutDoneScreen: 'goBtn', endingScreen: 'restartBtn', gameOverScreen: 'retryBtn' };
+  const overlayBtn = { ruleScreen: 'ruleClose', titleScreen: 'startBtn', tutDoneScreen: 'goBtn', endingScreen: 'restartBtn', gameOverScreen: 'retryBtn' };
   for (const id in overlayBtn) if (!$(id).classList.contains('hidden')) { $(overlayBtn[id]).click(); return; }
   if (state.phase === 'next') next();
   else if (state.phase === 'play' && e.key === 'Enter') submit();
