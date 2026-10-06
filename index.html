@@ -525,8 +525,8 @@ function build(lv, kind, prm, rng, opt = {}) {
     ineq: () => ['▼ 弧と はしの ●○', ineqStr(q.fn, q.v, q.s, q.strict) + ' と なる 弧は？'],
   };
   const R = {
-    pos: ['▼ この 点の θ は？', '？　（0 ≦ θ ＜ 2π）'], coord: ['▼ この 点の 座標は？', '？'],
-    eq: ['▼ この 点に なる 式は？', '？'], ineq: ['▼ この 弧に なる 式は？', '？'], quad: ['▼ ぬられた しょうげんは？', '？'],
+    pos: ['▼ この 点を 表す θ は？', '？　（0 ≦ θ ＜ 2π）'], coord: ['▼ この 点の 座標は？', '？'],
+    eq: ['▼ 解が この 点に なる 方程式は？', '？'], ineq: ['▼ 解が この 弧に なる 不等式は？', '？'], quad: ['▼ ぬられた しょうげんは？', '？'],
   };
   const short = kind === 'rev' ? R[q.mode] : L[q.mode]();
   [p.label, p.display] = short;
@@ -1026,7 +1026,7 @@ function drawProblem(ctx, g, q) {
     const arcs = vk === 'ans' ? q.answer.arcs : state.sel.arcs;
     arcs.forEach(i => arcPath(ctx, g, i === 0 ? b0 : b1, i === 0 ? b1 : b0 + 24, vk === 'ans' ? YEL : BLUE, 7));
   }
-  if (q.mode === 'eq' && vk !== 'ask') guideLine(ctx, g, m, 'rgba(255,255,255,0.7)');
+  if (q.mode === 'eq' && vk !== 'ask' && !(q.options && !state.reveal)) guideLine(ctx, g, m, 'rgba(255,255,255,0.7)');
   if ((q.mode === 'sign' || q.mode === 'val') && vk === 'ans') coordSeg(ctx, g, m.u, q.mode === 'val' ? m.fn : (m.fn === 'tan' ? null : m.fn));
   if (q.mode === 'coord') coordSeg(ctx, g, m.u, null);
   // 角の位置：えらんだ点（答え合わせでは正しい点）まで、原点から 動径を 引く（「動径を 図示せよ」と そろえる）
