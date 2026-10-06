@@ -533,7 +533,7 @@ function build(lv, kind, prm, rng, opt = {}) {
   // BOSS：問題集・模試の言い回し（いくつかの言い方から1つ）
   if (opt.boss) {
     const E = {
-      pos: () => ['角 ' + angStr(q.t) + ' の 動径を 図示せよ。', '角 ' + angStr(q.t) + ' の 動径と 単位円の 交点 P の 位置を 答えよ。'],
+      pos: () => ['角 ' + angStr(q.t) + ' の 動径を 図示せよ。', '角 ' + angStr(q.t) + ' の 動径と 単位円の 交点を 選べ。'],
       sign: () => [fnStr(q.fn, q.u) + ' の 符号を 答えよ。', fnStr(q.fn, q.u) + ' の 値の 符号を 答えよ。'],
       qsign: () => ['θ が 第' + q.q + '象限の 角の とき、' + q.fn + 'θ の 符号を 答えよ。', '第' + q.q + '象限の 角 θ に ついて、' + q.fn + 'θ の 符号を 答えよ。'],
       val: () => [fnStr(q.fn, q.u) + ' の 値を 求めよ。', '次の 値を 求めよ。　' + fnStr(q.fn, q.u)],
@@ -1029,12 +1029,18 @@ function drawProblem(ctx, g, q) {
   if (q.mode === 'eq' && vk !== 'ask') guideLine(ctx, g, m, 'rgba(255,255,255,0.7)');
   if ((q.mode === 'sign' || q.mode === 'val') && vk === 'ans') coordSeg(ctx, g, m.u, q.mode === 'val' ? m.fn : (m.fn === 'tan' ? null : m.fn));
   if (q.mode === 'coord') coordSeg(ctx, g, m.u, null);
-  if (q.mode === 'pos' && vk === 'ans') radius(ctx, g, m.u);
+  // 角の位置：えらんだ点（答え合わせでは正しい点）まで、原点から 動径を 引く（「動径を 図示せよ」と そろえる）
+  if (q.mode === 'pos' && !q.options) {
+    const us = vk === 'ans' ? [m.u] : state.sel.pts;
+    us.forEach(u => radius(ctx, g, u, vk === 'ans' ? YEL : BLUE));
+  }
   if (state.tut && state.tut.hintSeg && !state.reveal && state.blinkOn !== null) coordSeg(ctx, g, m.u, m.fn, true);
 }
-function radius(ctx, g, u) {
-  ctx.strokeStyle = YEL; ctx.lineWidth = 2 * g.d;
-  ctx.beginPath(); ctx.moveTo(g.cx, g.cy); ctx.lineTo(X(g, Math.cos(ang(u))), Y(g, Math.sin(ang(u)))); ctx.stroke();
+// 動径（原点から のびる 半直線）。円の 少し 外まで 引く
+function radius(ctx, g, u, color) {
+  const k = color ? 1.18 : 1;   // 点 P の 線（coordSeg）は 円まで、動径は 外まで
+  ctx.strokeStyle = color || YEL; ctx.lineWidth = (color ? 3 : 2) * g.d;
+  ctx.beginPath(); ctx.moveTo(g.cx, g.cy); ctx.lineTo(X(g, k * Math.cos(ang(u))), Y(g, k * Math.sin(ang(u)))); ctx.stroke();
 }
 // 点 P と、cos（x座標）・sin（y座標）の線。fn の線を黄色で太く
 function coordSeg(ctx, g, u, fn, blink) {
