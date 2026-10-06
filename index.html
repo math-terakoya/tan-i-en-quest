@@ -198,6 +198,12 @@ background: #000; border: 2px solid #888; color: #ccc;
 padding: 8px 18px; font-size: 13px; letter-spacing: 2px; cursor: pointer; margin-top: 18px; font-family: inherit;
 }
 .overlay .hero { font-size: 64px; margin-bottom: 12px; }
+#chapterList { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 360px; }
+.chap { background: #000; border: 2px solid #fff; color: #fff; font-family: inherit; font-size: 14px; padding: 8px 10px; text-align: left; cursor: pointer; }
+.chap .unit { display: block; font-size: 11px; color: #aaa; margin-top: 2px; }
+.chap.locked { color: #666; border-color: #444; cursor: default; }
+.chap.reset { border-color: #888; color: #ccc; margin-top: 8px; }
+.how-btn.hidden { display: none; }
 .overlay .points {
 text-align: left; border: 3px solid #fff; box-shadow: 0 0 0 3px #000, 0 0 0 5px #fff;
 padding: 12px 14px; margin: 4px 0 8px; font-size: 13px; line-height: 2; letter-spacing: 0.5px;
@@ -241,7 +247,7 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
     <p style="margin-top:24px;">えんの うえの ばしょを みきわめ<br>モンスターを うちたおせ！</p>
     <button class="start-btn" id="startBtn">▶ はじめる</button>
     <button class="how-btn" id="howBtn">？ あそびかた</button>
-    <p class="sub" style="margin-top:20px;font-size:10px;">LV1〜LV5（各1戦）→ BOSS（3戦）</p>
+    <p class="sub" style="margin-top:20px;font-size:10px;">5つの 章（どこからでも）→ さいごの 章</p>
   </div>
 
   <div class="overlay hidden" id="tutDoneScreen">
@@ -254,7 +260,7 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
       <div>・＜ ＞ は イコール なし → <b>○</b></div>
       <div>・ずから しきを えらぶ もんだいも ある</div>
     </div>
-    <button class="start-btn" id="goBtn">▶ ぼうけんへ</button>
+    <button class="start-btn" id="goBtn">▶ しょうえらびへ</button>
   </div>
 
   <div class="overlay hidden" id="ruleScreen">
@@ -270,21 +276,34 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
     <button class="start-btn" id="ruleClose">▶ もどる</button>
   </div>
 
-  <div class="overlay hidden" id="endingScreen">
-    <div class="hero">👑</div>
-    <h1>GAME CLEAR!</h1>
-    <p>ゆうしゃよ、よくぞ<br>エンノヌシを たおした。</p>
-    <p>えんを めぐりし者よ<br>その ちえに えいこう あれ。</p>
-    <p class="sub">～ FIN ～</p>
-    <button class="start-btn" id="restartBtn">▶ もう一度</button>
+  <div class="overlay hidden" id="mapScreen">
+    <h1 style="font-size:20px;margin-bottom:12px;">しょうを えらべ</h1>
+    <div id="chapterList"></div>
+  </div>
+
+  <div class="overlay hidden" id="clearScreen">
+    <div class="hero" id="clearHero">🌀</div>
+    <h1 id="clearTitle">たおした！</h1>
+    <p id="clearText"></p>
+    <button class="start-btn" id="clearBtn">▶ しょうえらびへ</button>
+    <button class="how-btn hidden" id="resetBtn1">▶ さいしょから あそぶ</button>
+  </div>
+
+  <div class="overlay hidden" id="resetScreen">
+    <div class="hero">🔄</div>
+    <h1 style="font-size:20px;">さいしょから？</h1>
+    <p>クリアの きろくを けして<br>さいしょから あそびます。</p>
+    <button class="start-btn" id="resetYes">けす</button>
+    <button class="how-btn" id="resetNo">やめる</button>
   </div>
 
   <div class="overlay hidden" id="gameOverScreen">
     <div class="hero">💀</div>
     <h1 style="color:#ff4444;text-shadow:3px 3px 0 #440000;">ぜんめつ…</h1>
     <p>ゆうしゃは たおれてしまった…</p>
-    <p class="sub">この LV の さいしょから</p>
+    <p class="sub">この 章の さいしょから</p>
     <button class="start-btn" id="retryBtn">▶ やりなおす</button>
+    <button class="how-btn" id="toMapBtn">しょうえらびへ</button>
   </div>
 
   <div class="rpg-window" id="status">
@@ -704,31 +723,30 @@ function likeOK(q, m, types) {
   return true;
 }
 
-// ---------- ステージ ----------
-// 授業の感想（問題数が多い）から：LV は各1戦、BOSS は3戦（全8問）
-const BATTLES = 1;
-const BOSS_HP = 3;
-const BOSS_REV = 1;   // BOSS の逆向きの数
-const LEVELS = [
-  { lv: 1, name: 'メグリ', sprite: '🌀' },
-  { lv: 2, name: 'ウラオモテ', sprite: '🎭' },
-  { lv: 3, name: 'ナガミジカ', sprite: '🦒' },
-  { lv: 4, name: 'フタゴ', sprite: '👯' },
-  { lv: 5, name: 'ハンエン', sprite: '🌗' },
-  { lv: 'BOSS', name: 'エンノヌシ', sprite: '🌕', boss: true },
+// ---------- 章 ----------
+// 各章：ザコ3体（各1戦、うち1体は逆向き。符号の章は逆向きなし）→ 中ボス（2ダメ、その章の単元を 問題集の 言い回しで）
+// 5章 すべて クリアで トリの ボス（5ダメ、5つの 単元を 問題集の 言い回しで）。章は どこからでも えらべる
+const NORMAL = 3, MID_HP = 2, FINAL_HP = 5;
+const CHAPTERS = [
+  { ch: 1, lv: 1, title: '第1章 角の いち', enemy: { name: 'メグリ', sprite: '🌀' }, boss: { name: 'オオメグリ', sprite: '🌪️' } },
+  { ch: 2, lv: 2, title: '第2章 ＋ と −', enemy: { name: 'ウラオモテ', sprite: '🎭' }, boss: { name: 'フゴウノカミ', sprite: '⚖️' } },
+  { ch: 3, lv: 3, title: '第3章 あたい', enemy: { name: 'ナガミジカ', sprite: '🦒' }, boss: { name: 'ザヒョウオウ', sprite: '📐' } },
+  { ch: 4, lv: 4, title: '第4章 方程式', enemy: { name: 'フタゴ', sprite: '👯' }, boss: { name: 'フタゴノヌシ', sprite: '🪞' } },
+  { ch: 5, lv: 5, title: '第5章 不等式', enemy: { name: 'ハンエン', sprite: '🌗' }, boss: { name: 'ハンゲツオウ', sprite: '🌘' } },
+  { ch: 6, final: true, title: 'さいごの 章', boss: { name: 'エンノヌシ', sprite: '🌕' } },
 ];
-// LV2 は逆向きを出さない（象限 → 式 は選択肢がふえるので）。かわりに ＋− と 象限タップ を1戦ずつ
-function makeSlots(level, rng, ctx) {
-  // LV2 は「＋か−か」と「象限タップ」のどちらか（逆向きなし）。ほかの LV は 順方向か逆向きの どちらか
-  if (level.lv === 2) return shuffle(rng, [{ lv: 2, kind: 'fwd', form: 'sign' }, { lv: 2, kind: 'fwd', form: 'qsign' }]).slice(0, BATTLES);
-  if (!level.boss) {
-    const rev = ri(rng, 0, BATTLES);   // BATTLES のときは 逆向きなし（1戦なら 半々）
-    return [...Array(BATTLES).keys()].map(i => ({ lv: level.lv, kind: i === rev ? 'rev' : 'fwd' }));
+function lv2Form(rng) { return rng() < 0.5 ? 'sign' : 'qsign'; }
+function makeSlots(ch, rng, ctx) {
+  const C = CHAPTERS[ch - 1];
+  if (C.final) {
+    const lvs = shuffle(rng, [1, 2, 3, 4, 5]);
+    const rev = pick(rng, lvs.map((lv, i) => i).filter(i => lvs[i] !== 2));   // 逆向きは 1問（符号の 単元 以外）
+    return lvs.map((lv, i) => ({ lv, kind: i === rev ? 'rev' : 'fwd', form: lv === 2 ? lv2Form(rng) : undefined, boss: true }));
   }
-  const weak = ctx ? Object.keys(ctx.weak).map(Number) : [];
-  const lvs = shuffle(rng, shuffle(rng, weak).concat(shuffle(rng, [1, 2, 3, 4, 5].filter(v => !weak.includes(v)))).slice(0, BOSS_HP));
-  const revIdx = shuffle(rng, [...Array(BOSS_HP).keys()].filter(i => lvs[i] !== 2)).slice(0, BOSS_REV);
-  return lvs.map((lv, i) => ({ lv, kind: revIdx.includes(i) ? 'rev' : 'fwd', boss: true }));
+  const lv = C.lv, rev = lv === 2 ? -1 : ri(rng, 0, NORMAL - 1);
+  const normal = [...Array(NORMAL).keys()].map(i => ({ lv, kind: i === rev ? 'rev' : 'fwd', form: lv === 2 ? lv2Form(rng) : undefined }));
+  const mid = [...Array(MID_HP).keys()].map(() => ({ lv, kind: 'fwd', form: lv === 2 ? lv2Form(rng) : undefined, boss: true }));
+  return normal.concat(mid);
 }
 function newContext() { return { recent: [], recentFig: [], weak: {}, log: [] }; }
 // 問題の「中身」：向き（式 → 図／図 → 式）がちがっても、同じ点・同じ弧なら同じ中身
@@ -776,7 +794,7 @@ function record(ctx, p, ok, cls, ms) {
 G.UnitCore = {
   PTS, OFF_AXIS, angStr, valStr, valNum, V, cosV, sinV, fnV, signOf, quadrant, solutions, quadsOf,
   arcBounds, arcOf, arcSat, genPrm, build, figKey, judge, classify, describe, masterText, likeOK,
-  LEVELS, BATTLES, BOSS_HP, makeSlots, newContext, makeProblem, record, mulberry32, mod24,
+  CHAPTERS, NORMAL, MID_HP, FINAL_HP, makeSlots, newContext, makeProblem, record, mulberry32, mod24,
 };
 })(typeof window !== 'undefined' ? window : this);
 </script>
@@ -786,7 +804,6 @@ G.UnitCore = {
 (function () {
 'use strict';
 const C = window.UnitCore;
-const LEVELS = C.LEVELS;
 const MAX_LIVES = 3;
 const rng = Math.random;
 const $ = id => document.getElementById(id);
@@ -797,7 +814,7 @@ const monsterEl = $('monster');
 const optBtns = [...document.querySelectorAll('#controls .opt')];
 
 const state = {
-  levelIdx: 0, slots: [], slotIdx: 0, hp: 1, lives: MAX_LIVES,
+  ch: 1, slots: [], slotIdx: 0, hp: 1, lives: MAX_LIVES,
   problem: null,
   sel: { pts: [], quads: [], arcs: [] },   // タップで選んだもの
   choice: null,      // ＋− または ●○（'a' | 'b'）
@@ -810,7 +827,9 @@ const state = {
   ctx: C.newContext(),
   onNext: null,
 };
-function level() { return LEVELS[state.levelIdx]; }
+const chap = () => C.CHAPTERS[state.ch - 1];
+const nNormal = () => (chap().final ? 0 : C.NORMAL);
+const atBoss = () => state.slotIdx >= nNormal();
 // 式の文字を TeX 風の HTML にする。stacked のときは a/b を上下に積む。√ の中身には上に線
 function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function rootHTML(t) { return t.replace(/√(\d+)/g, '<span class="rt">√<span class="rad">$1</span></span>'); }
@@ -824,24 +843,22 @@ const tapMode = q => !!q && !q.options && (q.mode === 'pos' || q.mode === 'quad'
 
 // ---------- 表示 ----------
 function renderStatus() {
-  const lv = level();
-  $('levelDisplay').textContent = lv.boss ? 'BOSS' : 'LV ' + lv.lv;
+  const c = chap(), n = nNormal();
+  $('levelDisplay').textContent = c.final ? 'さいご' : '第' + c.ch + '章';
   $('livesDisplay').innerHTML = '♥'.repeat(Math.max(0, state.lives)) + '<span class="empty">' + '♡'.repeat(MAX_LIVES - Math.max(0, state.lives)) + '</span>';
-  $('progressDisplay').textContent = lv.boss ? 'ボスせん' : Math.min(state.slotIdx, C.BATTLES) + '/' + C.BATTLES;
+  $('progressDisplay').textContent = atBoss() ? 'ボスせん' : state.slotIdx + '/' + n;
   $('enemyHpDisplay').textContent = 'HP ' + Math.max(0, state.hp);
-  const total = (LEVELS.length - 1) * C.BATTLES;
-  const done = Math.min(total, state.levelIdx * C.BATTLES + Math.min(state.slotIdx, C.BATTLES));
-  $('bossDisplay').textContent = lv.boss ? 'さいごの たたかい！' : '■'.repeat(done) + '□'.repeat(total - done) + '　あと ' + (total - done) + 'たい';
+  $('bossDisplay').textContent = atBoss() ? c.boss.name + ' と たたかい中！' : '■'.repeat(state.slotIdx) + '□'.repeat(n - state.slotIdx) + '　あと ' + (n - state.slotIdx) + 'たい';
   if (state.tut) {
     $('levelDisplay').textContent = 'れんしゅう';
     $('progressDisplay').textContent = (state.tut.i + 1) + '/' + TUT.length;
   }
 }
 function renderEnemy() {
-  const lv = level();
-  monsterEl.textContent = lv.sprite;
-  monsterEl.className = lv.boss ? 'boss' : '';
-  $('monsterName').textContent = lv.name;
+  const c = chap(), e = atBoss() ? c.boss : c.enemy;
+  monsterEl.textContent = e.sprite;
+  monsterEl.className = atBoss() ? 'boss' : '';
+  $('monsterName').textContent = e.name;
 }
 function renderProblem() {
   $('problemLabel').textContent = p().label;
@@ -1154,17 +1171,17 @@ function newProblem() {
   state.shownAt = performance.now();
   renderProblem(); renderControls(); renderStatus(); draw();
 }
-function startLevel(idx) {
-  state.levelIdx = idx;
-  const lv = level();
-  state.slots = C.makeSlots(lv, rng, state.ctx);
+function startChapter(ch) {
+  state.ch = ch;
+  const c = chap();
+  state.slots = C.makeSlots(ch, rng, state.ctx);
   state.slotIdx = 0;
-  state.hp = lv.boss ? C.BOSS_HP : 1;
+  state.hp = c.final ? C.FINAL_HP : 1;
   state.lives = MAX_LIVES;
   monsterEl.classList.remove('dying');
   renderEnemy();
   newProblem();
-  setMessage((lv.boss ? 'エンノヌシが あらわれた！\nここからは 問題集の ことばで 出るぞ！' : lv.name + 'が　あらわれた！') + '\n' + hint());
+  setMessage((c.final ? c.boss.name + 'が あらわれた！\nここからは 問題集の ことばで 出るぞ！' : c.title + '\n' + c.enemy.name + 'が　あらわれた！') + '\n' + hint());
 }
 function answerNow() {
   const q = p();
@@ -1186,37 +1203,74 @@ function submit() {
   if (ok) onCorrect(ev); else onWrong(cls);
 }
 function onCorrect(ev) {
-  const lv = level();
+  const c = chap(), e = atBoss() ? c.boss : c.enemy;
   state.phase = 'busy'; state.reveal = true; state.hp -= 1;
   draw(); renderControls(); renderStatus();
   flashScreen(); monsterAnim('hit'); showDamage('-1', '#ffff00');
   const mastered = ev.mastered.map(t => '◎ ' + C.masterText(t) + ' こくふく！').join('\n');
-  setMessage('せいかい！　' + lv.name + 'に　ダメージ！' + (mastered ? '\n' + mastered : ''));
+  setMessage('せいかい！　' + e.name + 'に　ダメージ！' + (mastered ? '\n' + mastered : ''));
   setTimeout(() => {
     state.slotIdx += 1;
     if (state.hp > 0) { newProblem(); setMessage('のこり HP ' + state.hp + '！\n' + hint()); return; }
     monsterEl.classList.add('dying');
-    setMessage(lv.name + 'を　たおした！');
+    setMessage(e.name + 'を　たおした！');
     renderStatus();
     setTimeout(afterDefeat, 1100);
   }, 1000);
 }
 function afterDefeat() {
-  const lv = level();
-  if (state.slotIdx >= state.slots.length) {
-    if (lv.boss) { $('endingScreen').classList.remove('hidden'); state.phase = 'idle'; return; }
-    showLevelUp();
-    setTimeout(() => {
-      startLevel(state.levelIdx + 1);
-      const nl = level();
-      if (!nl.boss) setMessage('LV ' + nl.lv + ' に なった！　' + nl.name + 'が　あらわれた！\n' + hint());
-    }, 1800);
+  const c = chap();
+  monsterEl.classList.remove('dying');
+  if (state.slotIdx >= state.slots.length) { chapterClear(); return; }
+  state.lives = MAX_LIVES;
+  if (state.slotIdx === nNormal()) {   // 中ボス
+    state.hp = C.MID_HP;
+    renderEnemy(); newProblem();
+    setMessage('中ボス ' + c.boss.name + 'が あらわれた！\nここからは 問題集の ことばで 出るぞ！\n' + hint());
     return;
   }
-  state.hp = 1; state.lives = MAX_LIVES;
-  monsterEl.classList.remove('dying');
-  newProblem();
-  setMessage('また ' + lv.name + 'が　あらわれた！\n' + hint());
+  state.hp = 1;
+  renderEnemy(); newProblem();
+  setMessage('また ' + c.enemy.name + 'が　あらわれた！\n' + hint());
+}
+// ---------- 章えらび・記録 ----------
+let memClear = {};
+function loadClear() { try { return JSON.parse(localStorage.getItem('tan-i-en-clear') || '{}'); } catch (e) { return memClear; } }
+function saveClear(ch) {
+  const cl = loadClear(); cl[ch] = true; memClear = cl;
+  try { localStorage.setItem('tan-i-en-clear', JSON.stringify(cl)); } catch (e) { /* 保存できなくても その回は遊べる */ }
+}
+function showMap() {
+  const cl = loadClear(), all5 = [1, 2, 3, 4, 5].every(k => cl[k]);
+  const items = C.CHAPTERS.map(c => {
+    if (c.final && !all5) return '<button class="chap locked" disabled>🔒 さいごの 章（1〜5章を クリアで ひらく）</button>';
+    return '<button class="chap" data-ch="' + c.ch + '">' + (cl[c.ch] ? '✅ ' : '▶ ') + c.title + '<span class="unit">' +
+      (c.final ? 'ボス ' + c.boss.name + '（問題集の ことばで 5問）' : 'ザコ 3体 → 中ボス ' + c.boss.name) + '</span></button>';
+  }).join('') + (cl[6] ? '<button class="chap reset" id="resetBtn2">🔄 さいしょから あそぶ<span class="unit">クリアの きろくを けす</span></button>' : '');
+  $('chapterList').innerHTML = items;
+  $('chapterList').querySelectorAll('.chap[data-ch]').forEach(b => b.addEventListener('click', () => { $('mapScreen').classList.add('hidden'); state.ctx = C.newContext(); startChapter(+b.dataset.ch); }));
+  if (cl[6]) $('resetBtn2').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
+  $('mapScreen').classList.remove('hidden');
+  state.phase = 'idle';
+}
+function chapterClear() {
+  const c = chap();
+  saveClear(c.ch);
+  state.phase = 'idle';
+  const n = [1, 2, 3, 4, 5].filter(k => loadClear()[k]).length;
+  $('clearHero').textContent = c.boss.sprite;
+  $('clearTitle').textContent = c.boss.name + 'を たおした！';
+  $('clearText').textContent = c.final ? 'GAME CLEAR!　えんを めぐりし者よ、その ちえに えいこう あれ。'
+    : (n === 5 && !loadClear()[6] ? '5つの 章を クリア！ さいごの 章が ひらいた！' : 'クリアした 章 ' + n + '/5');
+  $('resetBtn1').classList.toggle('hidden', !c.final);
+  $('clearScreen').classList.remove('hidden');
+}
+function resetAll() {
+  memClear = {};
+  try { localStorage.removeItem('tan-i-en-clear'); localStorage.removeItem('tan-i-en-tut'); } catch (e) { /* 消せなくても その回は最初から */ }
+  ['resetScreen', 'clearScreen', 'mapScreen'].forEach(id => $(id).classList.add('hidden'));
+  state.ctx = C.newContext(); state.phase = 'idle';
+  $('titleScreen').classList.remove('hidden');
 }
 function onWrong(cls) {
   const q = p();
@@ -1292,7 +1346,7 @@ function placeTapHint() {
 }
 function startTutorial() {
   state.tut = { i: 0, step: 'tap' };
-  state.levelIdx = 0; state.slotIdx = 0; state.hp = 1; state.lives = MAX_LIVES;
+  state.ch = 1; state.slotIdx = 0; state.hp = 1; state.lives = MAX_LIVES;
   monsterEl.textContent = '🎯'; monsterEl.className = ''; $('monsterName').textContent = 'まと';
   $('skipTut').classList.remove('hidden');
   tutProblem();
@@ -1362,8 +1416,7 @@ function endTutorial() {
   state.tut = null;
   $('skipTut').classList.add('hidden');
   try { localStorage.setItem('tan-i-en-tut', '1'); } catch (e) { /* 保存できなくても遊べる */ }
-  state.ctx = C.newContext();
-  startLevel(0);
+  showMap();
 }
 
 // ---------- 操作 ----------
@@ -1386,18 +1439,23 @@ $('ansBtn').addEventListener('click', () => { if (state.phase === 'next') { stat
 $('startBtn').addEventListener('click', () => {
   $('titleScreen').classList.add('hidden');
   state.ctx = C.newContext();
-  if (tutDone()) startLevel(0); else startTutorial();
+  if (tutDone()) showMap(); else startTutorial();
 });
 $('howBtn').addEventListener('click', () => { $('titleScreen').classList.add('hidden'); startTutorial(); });
 $('skipTut').addEventListener('click', () => { if (state.tut) endTutorial(); });
 $('goBtn').addEventListener('click', () => { $('tutDoneScreen').classList.add('hidden'); endTutorial(); });
-$('restartBtn').addEventListener('click', () => { $('endingScreen').classList.add('hidden'); state.ctx = C.newContext(); startLevel(0); });
-$('retryBtn').addEventListener('click', () => { $('gameOverScreen').classList.add('hidden'); startLevel(state.levelIdx); });
+$('retryBtn').addEventListener('click', () => { $('gameOverScreen').classList.add('hidden'); startChapter(state.ch); });
+$('toMapBtn').addEventListener('click', () => { $('gameOverScreen').classList.add('hidden'); showMap(); });
+$('clearBtn').addEventListener('click', () => { $('clearScreen').classList.add('hidden'); showMap(); });
+$('resetBtn1').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
+$('resetYes').addEventListener('click', resetAll);
+$('resetNo').addEventListener('click', () => $('resetScreen').classList.add('hidden'));
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   e.preventDefault();
   if (e.repeat) return;
-  const overlayBtn = { ruleScreen: 'ruleClose', titleScreen: 'startBtn', tutDoneScreen: 'goBtn', endingScreen: 'restartBtn', gameOverScreen: 'retryBtn' };
+  if (!$('resetScreen').classList.contains('hidden') || !$('mapScreen').classList.contains('hidden')) return;
+  const overlayBtn = { ruleScreen: 'ruleClose', titleScreen: 'startBtn', tutDoneScreen: 'goBtn', clearScreen: 'clearBtn', gameOverScreen: 'retryBtn' };
   for (const id in overlayBtn) if (!$(id).classList.contains('hidden')) { $(overlayBtn[id]).click(); return; }
   if (state.phase === 'next') next();
   else if (state.phase === 'play' && e.key === 'Enter') submit();
