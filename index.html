@@ -108,10 +108,10 @@ font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer;
 #skipTut.hidden { display: none; }
 #problemExpr .nw { display: inline-block; white-space: nowrap; }
 /* ゲーム中に 章えらびへ もどる ボタン（れんしゅう中と ダメージの あいだは かくす） */
-#mapBtn { position: absolute; top: 4px; right: 6px; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 3; }
+#mapBtn { position: absolute; top: 5px; right: 8px; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 3; }
 #mapBtn.hidden { display: none; }
-#problem .label { padding-right: 46px; padding-left: 46px; }
-@media (max-width: 360px) { #mapBtn .mbt { display: none; } #problem .label { padding-right: 18px; padding-left: 18px; } }   /* せまい 画面は「≡」だけ */
+#livesDisplay { margin-right: 58px; }   /* 右上の「≡ しょう」と かさならないよう ハートを 左へ */
+@media (max-width: 360px) { #mapBtn .mbt { display: none; } #livesDisplay { margin-right: 26px; } }   /* せまい 画面は「≡」だけ */
 #problem .expr.long { font-size: 15px; }
 #problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; }
 #ruleBtn { display: block; margin: 3px auto 0; white-space: nowrap; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 2; }
@@ -342,6 +342,7 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
   </div>
 
   <div class="rpg-window" id="status">
+    <button id="mapBtn" class="hidden">≡<span class="mbt"> しょう</span></button>
     <div class="row"><span class="label">ゆうしゃ</span><span class="value" id="levelDisplay">LV 1</span></div>
     <div class="row"><span class="label">ライフ</span><span class="value hearts" id="livesDisplay">♥♥♥</span></div>
     <div class="row"><span class="label">こうげき</span><span class="value" id="attackDisplay">2</span></div>
@@ -351,7 +352,6 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 
   <div class="rpg-window" id="battle">
     <button id="skipTut" class="hidden">とばす ▶▶</button>
-    <button id="mapBtn" class="hidden">≡<span class="mbt"> しょう</span></button>
     <div id="enemy"><div id="monster">🌀</div><div id="monsterName">メグリ</div><button id="ruleBtn">？ やくそく</button></div>
     <div id="problem">
       <div class="label" id="problemLabel">&nbsp;</div>
