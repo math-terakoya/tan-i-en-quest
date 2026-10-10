@@ -235,6 +235,7 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
 #monster { font-size: 32px; }
 .key { min-height: 40px; font-size: 14px; }
 }
+#controls .nw { display: inline-block; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -434,7 +435,164 @@ function coordStr(u) { return '(' + valStr(cosV(u)) + ', ' + valStr(sinV(u)) + '
 //   val   { fn, u }                    coord { u }（逆向き） eq   { fn, v }       ineq { fn, v, s, strict }
 const EQ_VALS = [V(0, 0), V(1, 1), V(-1, 1), V(1, 2), V(-1, 2), V(1, 3), V(-1, 3)];
 const EDGE_VALS = [V(1, 4), V(-1, 4)];
+// ---------- 第6章 のこり2つ：象限と 値 1つ → のこりの 値（三角関数の 相互関係） ----------
+// rem* { q（象限）, given（'sin' | 'cos'）, t（直角三角形の 3辺）, w（与える 辺） }
+//   remRel { given（'sin' | 'cos' | 'tan'）} どの 関係式を 使うか ｜ remSign cos² から cos（符号は 象限）｜ remTan tan ＝ sin ÷ cos
+const TRIPLES = [[3, 4, 5], [5, 12, 13], [8, 15, 17]];
+const QSX = [0, 1, -1, -1, 1], QSY = [0, 1, 1, -1, -1];   // 象限ごとの x（cos）・y（sin）の 符号
+function frac(n, d) { if (d < 0) { n = -n; d = -d; } const g = gcd(n, d) || 1; n /= g; d /= g; return (n < 0 ? MINUS : '') + Math.abs(n) + (d === 1 ? '' : '/' + d); }
+function remVals(m) {   // 符号つきの 分子と 分母
+  const [a, b, c] = TRIPLES[m.t], g = m.w ? a : b, o = m.w ? b : a;
+  const sinN = (m.given === 'sin' ? g : o) * QSY[m.q], cosN = (m.given === 'sin' ? o : g) * QSX[m.q];
+  return { c, sinN, cosN, sin: frac(sinN, c), cos: frac(cosN, c), tan: frac(sinN, cosN) };
+}
+const remGiven = m => m.given + 'θ ＝ ' + remVals(m)[m.given];
+const REL = { pyth: 'sin²θ ＋ cos²θ ＝ 1', tan: 'tanθ ＝ {sinθ|cosθ}', tan2: '1 ＋ tan²θ ＝ {1|cos²θ}' };
+// ---------- 第7章 最大・最小：y ＝ A t² ＋ B t ＋ C（t ＝ sinθ・cosθ）（問題集 288） ----------
+//   qConv { to, A, B, C } sin² を cos で（cos² を sin で）｜ qRange { fn, r } t の 範囲 ｜ qMax { fn, A, P, C, I } 最大・最小の t ｜ qTheta { fn, v } t → θ
+const QR = { a: [0, 23, '0 ≦ θ ＜ 2π'], b: [0, 12, '0 ≦ θ ≦ π'], c: [0, 6, '0 ≦ θ ≦ π/2'], d: [-6, 6, '−π/2 ≦ θ ≦ π/2'] };
+function tRange(fn, r) {   // θ の 範囲で t ＝ fn(θ) が とる 値（π/12 きざみで さがす）
+  let lo = 9, hi = -9;
+  for (let u = QR[r][0]; u <= QR[r][1]; u++) { const x = Math.round((fn === 'sin' ? Math.sin(u * Math.PI / 12) : Math.cos(u * Math.PI / 12)) * 1e9) / 1e9; lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  return [lo, hi];
+}
+const halfStr = x => { const n = Math.round(x * 2); return n % 2 === 0 ? (n < 0 ? MINUS : '') + Math.abs(n / 2) : (n < 0 ? MINUS : '') + Math.abs(n) + '/2'; };
+const tIv = ([lo, hi]) => halfStr(lo) + ' ≦ t ≦ ' + halfStr(hi);
+function polyStr(A, B, C, x) {   // A x² ＋ B x ＋ C（x は 't' か 'sinθ' など）
+  const sq = x === 't' ? 't²' : x.replace('θ', '²θ');
+  const term = (k, s, first) => (k === 0 ? '' : (k < 0 ? (first ? MINUS : ' ' + MINUS + ' ') : (first ? '' : ' ＋ ')) + (Math.abs(k) === 1 && s ? '' : Math.abs(k)) + s);
+  return term(A, sq, true) + term(B, x, false) + term(C, '', false);
+}
+// y ＝ A sin²θ ＋ B cosθ ＋ C の 文字（2乗の 関数と 1次の 関数が ちがう）
+function mixedStr(q) {
+  const s = q.to === 'cos' ? 'sin' : 'cos', x = q.to + 'θ';
+  const lin = (Math.abs(q.B) === 1 ? '' : Math.abs(q.B)) + x + (q.C === 0 ? '' : (q.C < 0 ? ' − ' : ' ＋ ') + Math.abs(q.C));
+  return polyStr(q.A, 0, 0, s + 'θ') + (q.B < 0 ? ' − ' : ' ＋ ') + lin;
+}
+function qMaxAns(m) {   // 最大・最小に なる t（頂点 p ＝ P/2 が 区間の 中か 外か）
+  const [lo, hi] = m.I, p = m.P / 2, clamp = Math.min(hi, Math.max(lo, p));
+  const far = Math.abs(lo - p) > Math.abs(hi - p) ? lo : hi;
+  return m.A > 0 ? { max: far, min: clamp } : { max: clamp, min: far };
+}
+const qf = (m, t) => m.A * t * t - m.A * m.P * t + m.C;   // B ＝ −A P
+const qMaxText = (a, b) => 't ＝ ' + halfStr(a) + ' で 最大、t ＝ ' + halfStr(b) + ' で 最小';
+const solText = S => 'θ ＝ ' + S.map(angStr).join('、');
+function qThetaCands(fn, v) {
+  const c = [[solutions(fn, v), []], [solutions(other(fn), v), ['swap']]];
+  if (v.k !== 0) c.push([solutions(fn, neg(v)), ['sign']]);
+  const S = solutions(fn, v);
+  if (S.length > 1) c.push([S.slice(0, 1), ['half']], [S.slice(1), ['half']]);
+  if (v.k === 1 || v.k === 3) c.push([solutions(fn, lenSwap(v)), ['len']]);
+  const seen = [], out = [];
+  for (const [s, t] of c) { const k = s.join(); if (s.length && !seen.includes(k)) { seen.push(k); out.push([s, t]); } }
+  return out;
+}
+function genNew(lv, rng, boss) {
+  if (lv === 6) {
+    const t = rng();
+    if (t < 0.25 && !boss) return { mode: 'remRel', given: pick(rng, ['sin', 'cos', 'tan']) };
+    return { mode: t < 0.6 ? 'remSign' : 'remTan', q: ri(rng, 1, 4), given: pick(rng, ['sin', 'cos']), t: ri(rng, 0, TRIPLES.length - 1), w: ri(rng, 0, 1) };
+  }
+  const t = rng(), fn = pick(rng, ['sin', 'cos']);
+  if (t < 0.2 && !boss) { const A = pick(rng, [2, -2, 1, -1]); return { mode: 'qConv', to: fn === 'sin' ? 'cos' : 'sin', A, B: pick(rng, [1, 2, -1, -2, 4]), C: ri(rng, -3, 4) }; }
+  if (t < 0.4 && !boss) return { mode: 'qRange', fn, r: pick(rng, ['a', 'b', 'c', 'd']) };
+  if (t < 0.75 || boss) {
+    const I = rng() < 0.6 ? [-1, 1] : [0, 1];
+    const Ps = [-4, -2, -1, 0, 1, 2, 4].filter(P => P / 2 !== I[0] && P / 2 !== I[1] && P / 2 !== (I[0] + I[1]) / 2);
+    return { mode: 'qMax', fn: I[0] === 0 ? 'sin' : fn, A: pick(rng, [1, -1, 2, -2]), P: pick(rng, Ps), C: ri(rng, -3, 3), I };
+  }
+  for (;;) { const v = pick(rng, EQ_VALS.concat(EDGE_VALS)); if (qThetaCands(fn, v).length >= 4) return { mode: 'qTheta', fn, v }; }
+}
+function newOptions(p, rng, boss) {
+  const q = p.prm, out = [];
+  const push = (text, types) => out.push({ text, key: text, types, correct: !types.length });
+  if (q.mode === 'remRel') {
+    if (q.given === 'tan') { push(REL.tan2, []); push(REL.pyth, ['rel']); push(REL.tan, ['rel']); push('1 ＋ tanθ ＝ {1|cosθ}', ['naive']); }
+    else { push(REL.pyth, []); push(REL.tan, ['rel']); push(REL.tan2, ['rel']); push('sinθ ＋ cosθ ＝ 1', ['naive']); }
+  }
+  if (q.mode === 'remSign' || q.mode === 'remTan') {
+    const R = remVals(q), o = other(q.given), oN = q.given === 'sin' ? R.cosN : R.sinN, gN = q.given === 'sin' ? R.sinN : R.cosN;
+    if (boss) {   // 問題集の 形：のこり 2つの 値の 組（sin が 与えられたら cos と tan）
+      const pair = (a, b, t) => push(o + 'θ ＝ ' + a + '、tanθ ＝ ' + b, t);
+      pair(R[o], R.tan, []); pair(frac(-oN, R.c), frac(-R.sinN, R.cosN), ['sign']);   // 符号を まちがえると tan の 符号も かわる
+      pair(R[o], frac(R.cosN, R.sinN), ['inv']); pair(frac(-oN, R.c), R.tan, ['sign']);
+    } else if (q.mode === 'remSign') {
+      push(R[o], []); push(frac(-oN, R.c), ['sign']); push(frac(oN * oN, R.c * R.c), ['root']); push(frac(Math.sign(oN) * Math.abs(gN), R.c), ['swap']);
+    } else {
+      push(R.tan, []); push(frac(R.cosN, R.sinN), ['inv']); push(frac(-R.sinN, R.cosN), ['sign']); push(frac(R.sinN * R.cosN, R.c * R.c), ['mul']);
+    }
+  }
+  if (q.mode === 'qConv') {
+    const t = q.to, s = q.to === 'cos' ? 'sin' : 'cos';   // s² を t で 表す
+    push('1 − ' + t + '²θ', []); push(t + '²θ − 1', ['sign']); push('1 ＋ ' + t + '²θ', ['sign']); push('(1 − ' + t + 'θ)²', ['paren']);
+  }
+  if (q.mode === 'qRange') {
+    const R = tRange(q.fn, q.r), right = tIv(R);
+    for (const iv of [[-1, 1], [0, 1], [-1, 0]]) push(tIv(iv), tIv(iv) === right ? [] : ['trange']);
+    push(QR[q.r][2].replace(/θ/g, 't'), ['angle']);
+  }
+  if (q.mode === 'qMax') {
+    const A = qMaxAns(q), pts = [q.I[0], q.I[1], q.P / 2], inside = q.P / 2 >= q.I[0] && q.P / 2 <= q.I[1];
+    push(qMaxText(A.max, A.min), []);
+    push(qMaxText(A.min, A.max), ['mmswap']);
+    for (const a of pts) for (const b of pts) {
+      if (a === b || (a === A.max && b === A.min) || (a === A.min && b === A.max)) continue;
+      push(qMaxText(a, b), !inside && (a === q.P / 2 || b === q.P / 2) ? ['vertex'] : ['end']);
+    }
+  }
+  if (q.mode === 'qTheta') qThetaCands(q.fn, q.v).forEach(([S, t]) => push(solText(S), t));
+  return shuffle(rng, out.slice(0, 4));
+}
+function newTexts(p, boss) {
+  const q = p.prm;
+  const rangeT = q.I ? (q.I[0] === 0 ? '0 ≦ θ ≦ π' : '0 ≦ θ ＜ 2π') : '';
+  const S = {
+    remRel: ['▼ どの 式を つかう？', q.given === 'tan' ? 'tanθ の 値から cosθ を 求める。つかう 式は？' : q.given + 'θ の 値から ' + other(q.given) + 'θ を 求める。つかう 式は？'],
+    remSign: ['▼ 符号に 気をつけて', q.q ? '第' + q.q + '象限、' + remGiven(q) + '。' + other(q.given || 'sin') + '²θ ＝ ' + frac(Math.pow(q.given === 'sin' ? remVals(q).cosN : remVals(q).sinN, 2), Math.pow(remVals(q).c, 2)) + '。' + other(q.given || 'sin') + 'θ ＝ ？' : ''],
+    remTan: ['▼ tan は？', q.q ? '第' + q.q + '象限、sinθ ＝ ' + remVals(q).sin + '、cosθ ＝ ' + remVals(q).cos + '。tanθ ＝ ？' : ''],
+    qConv: ['▼ 1つの 関数に そろえる', ''],
+    qRange: ['▼ t の 範囲は？', q.r ? 't ＝ ' + q.fn + 'θ と おく。' + QR[q.r][2] + ' の とき t の 範囲は？' : ''],
+    qMax: ['▼ 最大・最小は どこ？', q.I ? 'y ＝ ' + polyStr(q.A, -q.A * q.P, q.C, 't') + '（' + tIv(q.I) + '）。最大・最小に なる t は？' : ''],
+    qTheta: ['▼ θ に もどす', q.v ? q.fn + 'θ ＝ ' + valStr(q.v) + '（0 ≦ θ ＜ 2π）の とき θ は？' : ''],
+  };
+  if (q.mode === 'qConv') S.qConv[1] = 'y ＝ ' + mixedStr(q) + ' を ' + q.to + 'θ だけで 表す。' + (q.to === 'cos' ? 'sin' : 'cos') + '²θ ＝ ？';
+  if (!boss) return S[q.mode];
+  const E = {
+    remRel: S.remRel,
+    remSign: q.q ? ['θ の 動径が 第' + q.q + '象限に あり、' + remGiven(q) + ' の とき、' + other(q.given) + 'θ と tanθ の 値の 組は 次の どれか。'] : [''],
+    remTan: q.q ? ['θ の 動径が 第' + q.q + '象限に あり、' + remGiven(q) + ' の とき、' + other(q.given) + 'θ と tanθ の 値の 組は 次の どれか。'] : [''],
+    qConv: S.qConv, qRange: S.qRange,
+    qMax: [rangeT + ' の とき、関数 y ＝ ' + polyStr(q.A, -q.A * q.P, q.C, q.fn + 'θ') + ' の 最大値・最小値を 求める。t ＝ ' + q.fn + 'θ と おく とき、最大・最小に なる t は 次の どれか。'],
+    qTheta: ['0 ≦ θ ＜ 2π の とき、' + q.fn + 'θ ＝ ' + valStr(q.v || V(1, 1)) + ' を 満たす θ を 求めよ。'],
+  };
+  return ['▼ 問題集の ことばで', E[q.mode][0]];
+}
+function newReason(p) {
+  const q = p.prm, L = [];
+  if (q.mode === 'remRel') {
+    L.push(q.given === 'tan' ? 'tan から cos は 1 ＋ tan²θ ＝ {1|cos²θ}（sin²θ ＋ cos²θ ＝ 1 を cos²θ で わった 式）' : 'sin と cos は sin²θ ＋ cos²θ ＝ 1 で つながる（2乗を わすれない）');
+  }
+  if (q.mode === 'remSign' || q.mode === 'remTan') {
+    const R = remVals(q), o = other(q.given);
+    L.push(o + '²θ ＝ 1 − ' + q.given + '²θ ＝ ' + frac(Math.pow(q.given === 'sin' ? R.cosN : R.sinN, 2), R.c * R.c) + ' → ' + o + 'θ ＝ ±' + R[o].replace(MINUS, ''));
+    L.push('第' + q.q + '象限は cos（x）が ' + (QSX[q.q] > 0 ? '＋' : '−') + '、sin（y）が ' + (QSY[q.q] > 0 ? '＋' : '−') + ' → ' + o + 'θ ＝ ' + R[o]);
+    L.push('tanθ ＝ sinθ ÷ cosθ ＝ ' + R.tan);
+  }
+  if (q.mode === 'qConv') L.push('sin²θ ＋ cos²θ ＝ 1 より ' + (q.to === 'cos' ? 'sin²θ ＝ 1 − cos²θ' : 'cos²θ ＝ 1 − sin²θ') + ' → ' + q.to + 'θ だけの 2次式に なる');
+  if (q.mode === 'qRange') L.push(q.fn + 'θ は 単位円の ' + (q.fn === 'sin' ? 'y' : 'x') + '座標。' + QR[q.r][2] + ' の 弧で ' + (q.fn === 'sin' ? 'y' : 'x') + ' は ' + tIv(tRange(q.fn, q.r)));
+  if (q.mode === 'qMax') {
+    const A = qMaxAns(q), p2 = q.P / 2, inside = p2 >= q.I[0] && p2 <= q.I[1];
+    L.push('頂点は t ＝ ' + halfStr(p2) + '（' + (inside ? '範囲の 中' : '範囲の 外') + '）、グラフは ' + (q.A > 0 ? '下に 凸' : '上に 凸'));
+    L.push(inside ? (q.A > 0 ? '最小は 頂点、最大は 頂点から 遠い はし' : '最大は 頂点、最小は 頂点から 遠い はし') : '範囲の 中では 単調 → 両はしで 最大・最小');
+    L.push('→ ' + qMaxText(A.max, A.min));
+  }
+  if (q.mode === 'qTheta') L.push((q.fn === 'sin' ? 'y ＝ ' : 'x ＝ ') + valStr(q.v) + ' の 線と 単位円の 交点 → ' + solText(solutions(q.fn, q.v)));
+  return L;
+}
+const NEW_MODES = ['remRel', 'remSign', 'remTan', 'qConv', 'qRange', 'qMax', 'qTheta'];
+
 function genPrm(lv, kind, rng, opt) {
+  if (lv >= 6) return genNew(lv, rng, !!opt.boss);
   if (lv === 1) {
     const u = pick(rng, kind === 'rev' ? OFF_AXIS : PTS.filter(u => u !== 0));
     let t = u;
@@ -523,6 +681,14 @@ function makeOptions(p, rng) {
 function build(lv, kind, prm, rng, opt = {}) {
   const p = { lv, kind, prm, mode: prm.mode };
   const q = prm;
+  if (NEW_MODES.includes(q.mode)) {   // 第6章・第7章（4択）
+    p.options = newOptions(p, rng, !!opt.boss);
+    const short = newTexts(p, false);
+    [p.label, p.display] = opt.boss ? newTexts(p, true) : short;
+    p.reason = newReason(p);
+    if (opt.boss) { p.exam = true; p.shortText = short[1]; p.reason.push('この 問題は LV' + lv + ' の「' + p.shortText + '」と おなじ'); }
+    return p;
+  }
   if (kind === 'rev' || q.mode === 'val') {
     p.options = makeOptions(p, rng);
   }
@@ -632,11 +798,16 @@ function classify(p, ans) {
 }
 const TYPE_TEXT = {
   dir: 'まわる むきが はんたい', ref: 'π/6 と π/3 が いれかわっている', quad: 'しょうげんが ちがう',
+  rel: 'つかう 関係式が ちがう（わかっている 値だけで 書ける 式を）', naive: '2乗を わすれた', root: '2乗の まま（√ を とっていない）',
+  inv: 'sin ÷ cos を 逆に わった', mul: 'sin と cos を かけた（tan は sin ÷ cos）', trange: 't ＝ sinθ・cosθ の とる 値の 範囲が ちがう',
+  angle: 'θ の 範囲と t の 範囲を まぜた', vertex: '頂点が 範囲の 外なのに 頂点で 最大・最小に した', end: '最大・最小に なる はしの とりかたが ちがう',
+  mmswap: '最大と 最小が 逆（上に 凸・下に 凸を 見る）', paren: '2乗の つけかたが ちがう（1 − cos²θ と (1 − cosθ)² は ちがう）',
   swap: 'sin と cos（y座標と x座標）が いれかわっている', sign: '＋ と − が はんたい',
   len: '1/2 と √3/2（みじかい・ながい）が いれかわっている', half: 'あてはまる 点が もう1つ ある',
   arc: 'えらんだ 弧が はんたい', line: 'はしの ●○ が ちがう', scatter: 'えらびかたが ばらばら',
 };
 const MASTER_TEXT = {
+  mmswap: '最大と 最小', paren: '2乗の つけかた', rel: '関係式の えらびかた', naive: '2乗', root: '√ を とる', inv: 'tan ＝ sin ÷ cos', mul: 'tan ＝ sin ÷ cos', trange: 't の 範囲', angle: 't の 範囲', vertex: '頂点と 範囲', end: '最大・最小の はし',
   dir: 'まわる むき', ref: 'π/6 と π/3', quad: 'しょうげん', swap: 'sin と cos', sign: '＋ と −',
   len: '1/2 と √3/2', half: 'あてはまる 点', arc: '弧の むき', line: 'はしの ●○',
 };
@@ -728,24 +899,26 @@ function likeOK(q, m, types) {
 // ---------- 章 ----------
 // 各章：ザコ3体（各1戦、うち1体は逆向き。符号の章は逆向きなし）→ 中ボス（2ダメ、その章の単元を 問題集の 言い回しで）
 // 5章 すべて クリアで トリの ボス（5ダメ、5つの 単元を 問題集の 言い回しで）。章は どこからでも えらべる
-const NORMAL = 3, MID_HP = 2, FINAL_HP = 5;
+const NORMAL = 3, MID_HP = 2, FINAL_HP = 7;   // さいごの 章は 7つの 単元を 1問ずつ
 const CHAPTERS = [
   { ch: 1, lv: 1, title: '第1章 角の いち', enemy: { name: 'メグリ', sprite: '🌀' }, boss: { name: 'オオメグリ', sprite: '🌪️' } },
   { ch: 2, lv: 2, title: '第2章 ＋ と −', enemy: { name: 'ウラオモテ', sprite: '🎭' }, boss: { name: 'フゴウノカミ', sprite: '⚖️' } },
   { ch: 3, lv: 3, title: '第3章 あたい', enemy: { name: 'ナガミジカ', sprite: '🦒' }, boss: { name: 'ザヒョウオウ', sprite: '📐' } },
   { ch: 4, lv: 4, title: '第4章 方程式', enemy: { name: 'フタゴ', sprite: '👯' }, boss: { name: 'フタゴノヌシ', sprite: '🪞' } },
   { ch: 5, lv: 5, title: '第5章 不等式', enemy: { name: 'ハンエン', sprite: '🌗' }, boss: { name: 'ハンゲツオウ', sprite: '🌘' } },
-  { ch: 6, final: true, title: 'さいごの 章', boss: { name: 'エンノヌシ', sprite: '🌕' } },
+  { ch: 6, lv: 6, title: '第6章 のこり2つ', enemy: { name: 'カタワレ', sprite: '🧩' }, boss: { name: 'ソウカンオウ', sprite: '🔗' } },
+  { ch: 7, lv: 7, title: '第7章 最大・最小', enemy: { name: 'ヤマタニ', sprite: '⛰️' }, boss: { name: 'ニジノヌシ', sprite: '🌈' } },
+  { ch: 8, final: true, title: 'さいごの 章', boss: { name: 'エンノヌシ', sprite: '🌕' } },
 ];
 function lv2Form(rng) { return rng() < 0.5 ? 'sign' : 'qsign'; }
 function makeSlots(ch, rng, ctx) {
   const C = CHAPTERS[ch - 1];
   if (C.final) {
-    const lvs = shuffle(rng, [1, 2, 3, 4, 5]);
-    const rev = pick(rng, lvs.map((lv, i) => i).filter(i => lvs[i] !== 2));   // 逆向きは 1問（符号の 単元 以外）
+    const lvs = shuffle(rng, CHAPTERS.filter(c => !c.final).map(c => c.lv));
+    const rev = pick(rng, lvs.map((lv, i) => i).filter(i => ![2, 6, 7].includes(lvs[i])));   // 逆向きは 1問（符号・第6章・第7章 以外）
     return lvs.map((lv, i) => ({ lv, kind: i === rev ? 'rev' : 'fwd', form: lv === 2 ? lv2Form(rng) : undefined, boss: true }));
   }
-  const lv = C.lv, rev = lv === 2 ? -1 : ri(rng, 0, NORMAL - 1);
+  const lv = C.lv, rev = [2, 6, 7].includes(lv) ? -1 : ri(rng, 0, NORMAL - 1);   // 第6章・第7章は 逆向きなし
   const normal = [...Array(NORMAL).keys()].map(i => ({ lv, kind: i === rev ? 'rev' : 'fwd', form: lv === 2 ? lv2Form(rng) : undefined }));
   const mid = [...Array(MID_HP).keys()].map(() => ({ lv, kind: 'fwd', form: lv === 2 ? lv2Form(rng) : undefined, boss: true }));
   return normal.concat(mid);
@@ -753,6 +926,8 @@ function makeSlots(ch, rng, ctx) {
 function newContext() { return { recent: [], recentFig: [], weak: {}, log: [] }; }
 // 問題の「中身」：向き（式 → 図／図 → 式）がちがっても、同じ点・同じ弧なら同じ中身
 function figKey(prm) {
+  if (prm.mode === 'remSign' || prm.mode === 'remTan') return 'rem:' + [prm.q, prm.given, prm.t, prm.w].join();
+  if (NEW_MODES.includes(prm.mode)) return prm.mode + ':' + JSON.stringify(prm);
   if (prm.mode === 'eq') return 'pts:' + solutions(prm.fn, prm.v).join(',');
   if (prm.mode === 'ineq') return 'arc:' + prm.fn + valStr(prm.v);
   if (prm.mode === 'quad') return 'quad:' + prm.fn + prm.s;
@@ -794,7 +969,7 @@ function record(ctx, p, ok, cls, ms) {
 }
 
 G.UnitCore = {
-  PTS, OFF_AXIS, angStr, valStr, valNum, V, cosV, sinV, fnV, signOf, quadrant, solutions, quadsOf,
+  NEW_MODES, TRIPLES, QR, remVals, tRange, qMaxAns, qf, polyStr, PTS, OFF_AXIS, angStr, valStr, valNum, V, cosV, sinV, fnV, signOf, quadrant, solutions, quadsOf,
   arcBounds, arcOf, arcSat, genPrm, build, figKey, judge, classify, describe, masterText, likeOK,
   CHAPTERS, NORMAL, MID_HP, FINAL_HP, makeSlots, newContext, makeProblem, record, mulberry32, mod24,
 };
@@ -837,6 +1012,7 @@ function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 function rootHTML(t) { return t.replace(/√(\d+)/g, '<span class="rt">√<span class="rad">$1</span></span>'); }
 function mathHTML(text, stacked) {
   let h = esc(text);
+  h = h.replace(/\{([^{}|]*)\|([^{}]*)\}/g, '<span class="fr"><span class="nu">$1</span><span class="de">$2</span></span>');   // {分子|分母}
   if (stacked) h = h.replace(/(\d*(?:√\d+)?\d*π?)\/(\d+)/g, (m, nu, de) => (nu ? '<span class="fr"><span class="nu">' + nu + '</span><span class="de">' + de + '</span></span>' : m));
   return rootHTML(h);
 }
@@ -876,7 +1052,8 @@ function renderControls() {
   optBtns.forEach((b, i) => {
     show(b, hasOpt);
     if (!hasOpt) return;
-    b.innerHTML = mathHTML(q.options[i].text, true);
+    // 「、」で 区切った 部分ごとに 改行しない（tanθ ＝ −3/4 が 行で 切れない）
+    b.innerHTML = q.options[i].text.split('、').map(t => '<span class="nw">' + mathHTML(t, true) + '</span>').join('、');
     b.dataset.text = q.options[i].text;
     b.classList.toggle('on', state.opt === i && !state.reveal);
     b.classList.toggle('right', state.reveal && q.options[i].correct);
@@ -940,6 +1117,7 @@ function draw() {
   const ctx = canvas.getContext('2d'), g = geo(), d = g.d;
   ctx.setLineDash([]);
   ctx.fillStyle = '#000a18'; ctx.fillRect(0, 0, g.W, g.W);
+  if (p() && p().mode === 'qMax') { drawPara(ctx, p(), g.W, d); return; }   // 最大・最小は t の 放物線だけ
   // 軸
   ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1 * d;
   ctx.beginPath(); ctx.moveTo(0, g.cy); ctx.lineTo(g.W, g.cy); ctx.moveTo(g.cx, 0); ctx.lineTo(g.cx, g.W); ctx.stroke();
@@ -972,6 +1150,7 @@ function draw() {
 
   const q = p();
   if (q) drawProblem(ctx, g, q);
+  if (q && C.NEW_MODES.includes(q.mode)) { drawNew(ctx, g, q); if (q.mode !== 'qTheta') return; }
 
   // 16か所の点（いちばん上に、小さく）
   for (const u of C.PTS) {
@@ -982,6 +1161,86 @@ function draw() {
 }
 
 // 目盛りの字：nu/de を上下に積み、√ の中身に屋根をかける（de が空なら1行）
+// 第6章・第7章の 図
+function textAt(ctx, d, s, x, y, col, align, size) {
+  ctx.font = 'bold ' + ((size || 12) * d) + 'px serif'; ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4 * d; ctx.strokeStyle = '#000a18'; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y);
+  ctx.fillStyle = col; ctx.fillText(s, x, y);
+}
+function drawNew(ctx, g, q) {
+  const m = q.prm, d = g.d, rev = state.reveal;
+  const seg = (x0, y0, x1, y1, col, w, dash) => { ctx.strokeStyle = col; ctx.lineWidth = w * d; ctx.setLineDash(dash ? [5 * d, 4 * d] : []); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]); };
+  const point = (x, y, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(g, x), Y(g, y), 6 * d, 0, Math.PI * 2); ctx.fill(); };
+  if (m.mode === 'remSign' || m.mode === 'remTan') {   // 象限を うすく。点 P（cosθ, sinθ）と 座標の 点線
+    sector(ctx, g, m.q, 'rgba(120,120,120,0.45)');
+    const R = C.remVals(m), x = R.cosN / R.c, y = R.sinN / R.c;
+    seg(g.cx, g.cy, X(g, x), Y(g, y), '#fff', 2.2);
+    seg(X(g, x), Y(g, y), X(g, x), g.cy, 'rgba(255,255,255,0.7)', 1.3, true);
+    seg(X(g, x), Y(g, y), g.cx, Y(g, y), 'rgba(255,255,255,0.7)', 1.3, true);
+    point(x, y, rev ? YEL : '#fff');
+    textAt(ctx, d, 'P', X(g, x) + (x > 0 ? 12 : -12) * d, Y(g, y) + (y > 0 ? -12 : 12) * d, '#fff');
+    if (rev) textAt(ctx, d, '(' + R.cos + ', ' + R.sin + ')', X(g, x * 0.55), Y(g, y) + (y > 0 ? -16 : 16) * d, YEL, 'center', 13);
+  }
+  if (m.mode === 'remRel' || m.mode === 'qConv') {   // 点 P（cosθ, sinθ）：答えの ときに sin²θ ＋ cos²θ ＝ 1
+    const t = 0.6, x = Math.cos(t), y = Math.sin(t);
+    seg(g.cx, g.cy, X(g, x), Y(g, y), '#fff', 2.2);
+    seg(X(g, x), Y(g, y), X(g, x), g.cy, BLUE, 2.5);
+    seg(g.cx, g.cy, X(g, x), g.cy, '#ff7a7a', 2.5);
+    point(x, y, '#fff');
+    textAt(ctx, d, 'sinθ', X(g, x) + 22 * d, Y(g, y / 2), BLUE);
+    textAt(ctx, d, 'cosθ', X(g, x / 2), g.cy + 12 * d, '#ff7a7a');
+    textAt(ctx, d, '1', X(g, x / 2) - 8 * d, Y(g, y / 2) - 8 * d, '#fff');
+    if (rev) textAt(ctx, d, 'sin²θ ＋ cos²θ ＝ 1', g.W / 2, 14 * d, YEL, 'center', 14);
+  }
+  if (m.mode === 'qRange') {   // θ の 範囲の 弧。答えの ときは t（y座標・x座標）の 範囲を きいろで
+    const [a, b] = C.QR[m.r];
+    arcPath(ctx, g, m.r === 'a' ? 0 : a, m.r === 'a' ? 24 : b, BLUE, 6);
+    if (rev) {
+      const [lo, hi] = C.tRange(m.fn, m.r);
+      if (m.fn === 'sin') seg(g.cx, Y(g, lo), g.cx, Y(g, hi), YEL, 6); else seg(X(g, lo), g.cy, X(g, hi), g.cy, YEL, 6);
+    }
+  }
+  if (m.mode === 'qTheta') {
+    guideLine(ctx, g, m, 'rgba(127,232,255,0.9)');
+    if (rev) C.solutions(m.fn, m.v).forEach(u => dot(ctx, g, u, YEL, true, 7));
+  }
+}
+// 最大・最小：t の 放物線。区間を うすく、頂点に 印。答えの ときは 最大・最小の 点を きいろで
+function drawPara(ctx, q, W, d) {
+  const m = q.prm, f = t => C.qf(m, t), T0 = -2.4, T1 = 2.4;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i <= 100; i++) { const t = T0 + (T1 - T0) * i / 100; lo = Math.min(lo, f(t)); hi = Math.max(hi, f(t)); }
+  lo = Math.min(lo, 0); hi = Math.max(hi, 0);
+  const pad = (hi - lo) * 0.12 + 0.5, Y0 = lo - pad, Y1 = hi + pad;
+  const tx = t => W * (0.06 + 0.88 * (t - T0) / (T1 - T0)), ty = y => W * (0.94 - 0.88 * (y - Y0) / (Y1 - Y0));
+  ctx.fillStyle = 'rgba(70,120,255,0.22)'; ctx.fillRect(tx(m.I[0]), 0, tx(m.I[1]) - tx(m.I[0]), W);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2 * d;
+  ctx.beginPath(); ctx.moveTo(0, ty(0)); ctx.lineTo(W, ty(0)); ctx.moveTo(tx(0), 0); ctx.lineTo(tx(0), W); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.setLineDash([3 * d, 3 * d]);
+  ctx.beginPath(); for (const t of [-2, -1, 1, 2]) { ctx.moveTo(tx(t), 0); ctx.lineTo(tx(t), W); } ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = (10 * d) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const t of [-2, -1, 1, 2]) ctx.fillText(t < 0 ? '−' + (-t) : String(t), tx(t), ty(0) + 3 * d);
+  ctx.font = 'italic ' + (12 * d) + 'px serif'; ctx.textAlign = 'right'; ctx.fillText('t', W - 4 * d, ty(0) + 3 * d);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('y', tx(0) + 4 * d, 3 * d);
+  // 区間の 外は 点線、中は 太い 線
+  const curve = (a, b, col, w, dash) => {
+    ctx.strokeStyle = col; ctx.lineWidth = w * d; ctx.setLineDash(dash ? [5 * d, 4 * d] : []); ctx.beginPath();
+    for (let i = 0; i <= 80; i++) { const t = a + (b - a) * i / 80; i ? ctx.lineTo(tx(t), ty(f(t))) : ctx.moveTo(tx(t), ty(f(t))); }
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  curve(T0, T1, 'rgba(255,255,255,0.4)', 1.5, true);
+  curve(m.I[0], m.I[1], '#fff', 3);
+  const p = m.P / 2;
+  ctx.fillStyle = '#7fe8ff'; ctx.beginPath(); ctx.arc(tx(p), ty(f(p)), 4.5 * d, 0, Math.PI * 2); ctx.fill();
+  textAt(ctx, d, '頂点', tx(p), ty(f(p)) + (m.A > 0 ? 14 : -14) * d, '#7fe8ff', 'center', 11);
+  if (state.reveal) {
+    const A = C.qMaxAns(m);
+    [[A.max, '最大'], [A.min, '最小']].forEach(([t, s]) => {
+      ctx.fillStyle = YEL; ctx.beginPath(); ctx.arc(tx(t), ty(f(t)), 6 * d, 0, Math.PI * 2); ctx.fill();
+      textAt(ctx, d, s, tx(t), ty(f(t)) + (s === '最大' ? -14 : 14) * d, YEL, 'center', 12);
+    });
+  }
+}
 function tickLabel(ctx, d, nu, de, x, y, pos) {
   ctx.font = (9 * d) + 'px sans-serif';
   ctx.textBaseline = 'alphabetic';
@@ -1237,21 +1496,30 @@ function afterDefeat() {
 }
 // ---------- 章えらび・記録 ----------
 let memClear = {};
-function loadClear() { try { return JSON.parse(localStorage.getItem('tan-i-en-clear') || '{}'); } catch (e) { return memClear; } }
+function loadClear() {
+  try {
+    const cl = JSON.parse(localStorage.getItem('tan-i-en-clear') || '{}');
+    // 第6章・第7章を 足す まえの「さいごの 章（6）」の クリアは、いまの さいごの 章（8）へ
+    if (!cl.v8) { if (cl[6]) { cl[FIN] = true; delete cl[6]; } cl.v8 = true; localStorage.setItem('tan-i-en-clear', JSON.stringify(cl)); }
+    return cl;
+  } catch (e) { return memClear; }
+}
 function saveClear(ch) {
   const cl = loadClear(); cl[ch] = true; memClear = cl;
   try { localStorage.setItem('tan-i-en-clear', JSON.stringify(cl)); } catch (e) { /* 保存できなくても その回は遊べる */ }
 }
+const NORM = C.CHAPTERS.filter(c => !c.final).map(c => c.ch);   // ふつうの 章（1〜7）
+const FIN = C.CHAPTERS.find(c => c.final).ch;                     // さいごの 章
 function showMap() {
-  const cl = loadClear(), all5 = [1, 2, 3, 4, 5].every(k => cl[k]);
+  const cl = loadClear(), all5 = NORM.every(k => cl[k]);
   const items = C.CHAPTERS.map(c => {
-    if (c.final && !all5) return '<button class="chap locked" disabled>🔒 さいごの 章（1〜5章を クリアで ひらく）</button>';
+    if (c.final && !all5) return '<button class="chap locked" disabled>🔒 さいごの 章（1〜' + NORM.length + '章を クリアで ひらく）</button>';
     return '<button class="chap" data-ch="' + c.ch + '">' + (cl[c.ch] ? '✅ ' : '▶ ') + c.title + '<span class="unit">' +
-      (c.final ? 'ボス ' + c.boss.name + '（問題集の ことばで 5問）' : 'ザコ 3体 → 中ボス ' + c.boss.name) + '</span></button>';
-  }).join('') + (cl[6] ? '<button class="chap reset" id="resetBtn2">🔄 さいしょから あそぶ<span class="unit">クリアの きろくを けす</span></button>' : '');
+      (c.final ? 'ボス ' + c.boss.name + '（問題集の ことばで ' + C.FINAL_HP + '問）' : 'ザコ 3体 → 中ボス ' + c.boss.name) + '</span></button>';
+  }).join('') + (cl[FIN] ? '<button class="chap reset" id="resetBtn2">🔄 さいしょから あそぶ<span class="unit">クリアの きろくを けす</span></button>' : '');
   $('chapterList').innerHTML = items;
   $('chapterList').querySelectorAll('.chap[data-ch]').forEach(b => b.addEventListener('click', () => { $('mapScreen').classList.add('hidden'); state.ctx = C.newContext(); startChapter(+b.dataset.ch); }));
-  if (cl[6]) $('resetBtn2').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
+  if (cl[FIN]) $('resetBtn2').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
   $('mapScreen').classList.remove('hidden');
   state.phase = 'idle';
 }
@@ -1259,11 +1527,11 @@ function chapterClear() {
   const c = chap();
   saveClear(c.ch);
   state.phase = 'idle';
-  const n = [1, 2, 3, 4, 5].filter(k => loadClear()[k]).length;
+  const n = NORM.filter(k => loadClear()[k]).length;
   $('clearHero').textContent = c.boss.sprite;
   $('clearTitle').textContent = c.boss.name + 'を たおした！';
   $('clearText').textContent = c.final ? 'GAME CLEAR!　えんを めぐりし者よ、その ちえに えいこう あれ。'
-    : (n === 5 && !loadClear()[6] ? '5つの 章を クリア！ さいごの 章が ひらいた！' : 'クリアした 章 ' + n + '/5');
+    : (n === NORM.length && !loadClear()[FIN] ? NORM.length + 'つの 章を クリア！ さいごの 章が ひらいた！' : 'クリアした 章 ' + n + '/' + NORM.length);
   $('resetBtn1').classList.toggle('hidden', !c.final);
   $('clearScreen').classList.remove('hidden');
 }
