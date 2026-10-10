@@ -106,6 +106,10 @@ background: #000; color: #aaa; border: 1px solid #666;
 font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer;
 }
 #skipTut.hidden { display: none; }
+/* ゲーム中に 章えらびへ もどる ボタン（れんしゅう中と ダメージの あいだは かくす） */
+#mapBtn { position: absolute; top: 4px; right: 6px; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 3; }
+#mapBtn.hidden { display: none; }
+#problem .label { padding-right: 46px; padding-left: 46px; }
 #problem .expr.long { font-size: 15px; }
 #problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; }
 #ruleBtn { display: block; margin: 3px auto 0; white-space: nowrap; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 2; }
@@ -181,9 +185,12 @@ transform: translate(-50%, -100%); animation: tapDown 0.8s ease-in-out infinite;
 /* — オーバーレイ — */
 .overlay {
 position: absolute; inset: 0; background: #000;
-display: flex; flex-direction: column; align-items: center; justify-content: center;
+display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
 padding: 24px; z-index: 100; text-align: center;
+overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
+/* 入りきる ときは まんなか、入りきらない ときは 上から スクロール（章が ふえても 下の ボタンまで とどく）。上下の 見えない すきまで まんなかに よせる */
+.overlay::before, .overlay::after { content: ''; flex: 1 0 0; }
 .overlay.hidden { display: none; }
 .overlay h1 { font-size: 28px; color: #ffff00; letter-spacing: 3px; margin-bottom: 20px; text-shadow: 3px 3px 0 #884400; line-height: 1.4; }
 .overlay p { font-size: 14px; color: #fff; line-height: 2; margin-bottom: 16px; letter-spacing: 1px; }
@@ -264,7 +271,7 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
     <p style="margin-top:24px;">えんの うえの ばしょを みきわめ<br>モンスターを うちたおせ！</p>
     <button class="start-btn" id="startBtn">▶ はじめる</button>
     <button class="how-btn" id="howBtn">？ あそびかた</button>
-    <p class="sub" style="margin-top:20px;font-size:10px;">5つの 章（どこからでも）→ さいごの 章</p>
+    <p class="sub" style="margin-top:20px;font-size:10px;">7つの 章（どこからでも）→ さいごの 章</p>
   </div>
 
   <div class="overlay hidden" id="tutDoneScreen">
@@ -315,6 +322,14 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
     <button class="how-btn" id="resetNo">やめる</button>
   </div>
 
+  <div class="overlay hidden" id="quitScreen">
+    <div class="hero">🗺️</div>
+    <h1 style="font-size:20px;">しょうえらびに もどる？</h1>
+    <p>この 章は さいしょから やりなおしに なります。</p>
+    <button class="start-btn" id="quitYes">もどる</button>
+    <button class="how-btn" id="quitNo">つづける</button>
+  </div>
+
   <div class="overlay hidden" id="gameOverScreen">
     <div class="hero">💀</div>
     <h1 style="color:#ff4444;text-shadow:3px 3px 0 #440000;">ぜんめつ…</h1>
@@ -334,6 +349,7 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 
   <div class="rpg-window" id="battle">
     <button id="skipTut" class="hidden">とばす ▶▶</button>
+    <button id="mapBtn" class="hidden">≡ しょう</button>
     <div id="enemy"><div id="monster">🌀</div><div id="monsterName">メグリ</div><button id="ruleBtn">？ やくそく</button></div>
     <div id="problem">
       <div class="label" id="problemLabel">&nbsp;</div>
@@ -455,7 +471,7 @@ const EDGE_VALS = [V(1, 4), V(-1, 4)];
 // ---------- 第6章 のこり2つ：象限と 値 1つ → のこりの 値（三角関数の 相互関係） ----------
 // rem* { q（象限）, given（'sin' | 'cos'）, t（直角三角形の 3辺）, w（与える 辺） }
 //   remRel { given（'sin' | 'cos' | 'tan'）} どの 関係式を 使うか ｜ remSign cos² から cos（符号は 象限）｜ remTan tan ＝ sin ÷ cos
-const TRIPLES = [[3, 4, 5], [5, 12, 13], [8, 15, 17]];
+const TRIPLES = [[3, 4, 5]];   // 暗算できる 3・4・5 だけ（5-12-13 や 8-15-17 は 2乗が 大きい）
 const QSX = [0, 1, -1, -1, 1], QSY = [0, 1, 1, -1, -1];   // 象限ごとの x（cos）・y（sin）の 符号
 function frac(n, d) { if (d < 0) { n = -n; d = -d; } const g = gcd(n, d) || 1; n /= g; d /= g; return (n < 0 ? MINUS : '') + Math.abs(n) + (d === 1 ? '' : '/' + d); }
 function remVals(m) {   // 符号つきの 分子と 分母
@@ -1086,7 +1102,10 @@ function renderProblem() {
   $('problemExpr').classList.toggle('long', !p().exam && p().display.length > 18);   // 長い文は 少し小さく（1行に おさめる）
 }
 function show(el, on) { el.classList.toggle('hidden', !on); }
+// 章えらびへ もどる ボタン：こたえを えらんでいる ときと 答え合わせの ときだけ（ダメージの 演出中は 出さない）
+function renderMapBtn() { $('mapBtn').classList.toggle('hidden', !!state.tut || !(state.phase === 'play' || state.phase === 'next')); }
 function renderControls() {
+  renderMapBtn();
   const q = p();
   const next = state.phase === 'next';
   const hasOpt = !!q && !!q.options;
@@ -1813,11 +1832,19 @@ $('clearBtn').addEventListener('click', () => { $('clearScreen').classList.add('
 $('resetBtn1').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
 $('resetYes').addEventListener('click', resetAll);
 $('resetNo').addEventListener('click', () => $('resetScreen').classList.add('hidden'));
+$('mapBtn').addEventListener('click', () => { if (!state.tut && (state.phase === 'play' || state.phase === 'next')) $('quitScreen').classList.remove('hidden'); });
+$('quitNo').addEventListener('click', () => $('quitScreen').classList.add('hidden'));
+$('quitYes').addEventListener('click', () => {
+  $('quitScreen').classList.add('hidden');
+  gameEl.classList.remove('boss-mid', 'boss-final');
+  state.phase = 'idle'; state.onNext = null; renderMapBtn();
+  showMap();
+});
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   e.preventDefault();
   if (e.repeat) return;
-  if (!$('resetScreen').classList.contains('hidden') || !$('mapScreen').classList.contains('hidden')) return;
+  if (!$('resetScreen').classList.contains('hidden') || !$('mapScreen').classList.contains('hidden') || !$('quitScreen').classList.contains('hidden')) return;
   const overlayBtn = { ruleScreen: 'ruleClose', titleScreen: 'startBtn', tutDoneScreen: 'goBtn', clearScreen: 'clearBtn', gameOverScreen: 'retryBtn' };
   for (const id in overlayBtn) if (!$(id).classList.contains('hidden')) { $(overlayBtn[id]).click(); return; }
   if (state.phase === 'next') next();
