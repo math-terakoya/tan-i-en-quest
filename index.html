@@ -106,10 +106,12 @@ background: #000; color: #aaa; border: 1px solid #666;
 font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer;
 }
 #skipTut.hidden { display: none; }
+#problemExpr .nw { display: inline-block; white-space: nowrap; }
 /* ゲーム中に 章えらびへ もどる ボタン（れんしゅう中と ダメージの あいだは かくす） */
 #mapBtn { position: absolute; top: 4px; right: 6px; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 3; }
 #mapBtn.hidden { display: none; }
 #problem .label { padding-right: 46px; padding-left: 46px; }
+@media (max-width: 360px) { #mapBtn .mbt { display: none; } #problem .label { padding-right: 18px; padding-left: 18px; } }   /* せまい 画面は「≡」だけ */
 #problem .expr.long { font-size: 15px; }
 #problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; }
 #ruleBtn { display: block; margin: 3px auto 0; white-space: nowrap; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 2; }
@@ -349,7 +351,7 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 
   <div class="rpg-window" id="battle">
     <button id="skipTut" class="hidden">とばす ▶▶</button>
-    <button id="mapBtn" class="hidden">≡ しょう</button>
+    <button id="mapBtn" class="hidden">≡<span class="mbt"> しょう</span></button>
     <div id="enemy"><div id="monster">🌀</div><div id="monsterName">メグリ</div><button id="ruleBtn">？ やくそく</button></div>
     <div id="problem">
       <div class="label" id="problemLabel">&nbsp;</div>
@@ -1095,11 +1097,24 @@ function bossWarn(final) {
   el.textContent = final ? '⚠ BOSS ⚠' : '⚠ 中ボス ⚠';
   gameEl.appendChild(el); setTimeout(() => el.remove(), 2000);
 }
+// 問題の 文：式の 記号（＝ ＋ − ＜ ≦ など）の まわりでは 改行しない。短い 言い方は 文ごとに 1行に して、はみ出す ときは 字を 小さく
+const NBOP = t => t.replace(/ ([＝＋−＜＞≦≧]) /g, '\u00a0$1\u00a0');
 function renderProblem() {
-  $('problemLabel').textContent = p().label;
-  $('problemExpr').innerHTML = mathHTML(p().display, true);
-  $('problemExpr').classList.toggle('exam', !!p().exam);
-  $('problemExpr').classList.toggle('long', !p().exam && p().display.length > 18);   // 長い文は 少し小さく（1行に おさめる）
+  const q = p(), el = $('problemExpr');
+  $('problemLabel').textContent = q.label;
+  if (q.exam) el.innerHTML = mathHTML(NBOP(q.display), true);
+  else el.innerHTML = q.display.split(/(?<=。)/).filter(x => x).map(x => '<span class="nw">' + mathHTML(NBOP(x), true) + '</span>').join('<br>');
+  el.classList.toggle('exam', !!q.exam);
+  el.classList.toggle('long', !q.exam && q.display.length > 18);   // 長い文は 少し小さく
+  fitProblem();
+}
+function fitProblem() {
+  const el = $('problemExpr');
+  el.querySelectorAll('.nw').forEach(nw => {
+    nw.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(nw).fontSize);
+    while (nw.scrollWidth > el.clientWidth && size > 10) { size -= 1; nw.style.fontSize = size + 'px'; }
+  });
 }
 function show(el, on) { el.classList.toggle('hidden', !on); }
 // 章えらびへ もどる ボタン：こたえを えらんでいる ときと 答え合わせの ときだけ（ダメージの 演出中は 出さない）
@@ -1165,6 +1180,7 @@ function resizePlane() {
   canvas.width = Math.round(S * DPR); canvas.height = Math.round(S * DPR);
   draw();
   placeTapHint(); placeBtnHint();
+  if (p()) fitProblem();
 }
 const RAD = 0.40;   // 円の半径（キャンバスの幅に対する割合）
 function geo() { const W = canvas.width; return { W, cx: W / 2, cy: W / 2, r: W * RAD, d: DPR }; }
