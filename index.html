@@ -52,7 +52,7 @@ flex-shrink: 0;
 #status .label { color: #ffff00; letter-spacing: 1px; }
 #status .value { color: #fff; letter-spacing: 1px; }
 #status .wide { grid-column: 1 / -1; }
-#bossDisplay { letter-spacing: 0; }
+
 .hearts { letter-spacing: 2px; color: #ff4444; }
 .hearts .empty { color: #444; }
 
@@ -236,6 +236,22 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
 .key { min-height: 40px; font-size: 14px; }
 }
 #controls .nw { display: inline-block; white-space: nowrap; }
+/* — ボス戦 — */
+#game.boss-mid .rpg-window { border-color: #ff5a5a; box-shadow: 0 0 0 3px #000, 0 0 0 5px #ff5a5a; }
+#game.boss-final .rpg-window { border-color: #ffcc33; box-shadow: 0 0 0 3px #000, 0 0 0 5px #ffcc33; }
+#game.boss-mid #plane { border-color: #ff5a5a; }
+#game.boss-final #plane { border-color: #ffcc33; }
+.boss-warn {
+position: absolute; left: 0; right: 0; top: 38%; z-index: 40; pointer-events: none; text-align: center;
+font-size: 34px; font-weight: bold; letter-spacing: 4px; color: #fff; background: rgba(180,0,0,0.85);
+padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
+}
+.boss-warn.final { background: rgba(170,120,0,0.9); text-shadow: 3px 3px 0 #430; }
+@keyframes warn { 0%, 20%, 40%, 60% { opacity: 1; } 10%, 30%, 50% { opacity: 0.35; } 85% { opacity: 1; } 100% { opacity: 0; } }
+.level-up.crit { color: #ff9900; font-size: 26px; text-shadow: 3px 3px 0 #662200, 0 0 18px #ff6600; }
+.chap .stars { float: right; color: #ffd84a; letter-spacing: 1px; }
+.chap .stars .dim { color: #444; }
+#progressDisplay { letter-spacing: 0; }
 </style>
 </head>
 <body>
@@ -278,23 +294,24 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
   </div>
 
   <div class="overlay hidden" id="mapScreen">
-    <h1 style="font-size:20px;margin-bottom:12px;">しょうを えらべ</h1>
+    <h1 style="font-size:20px;margin-bottom:6px;">しょうを えらべ</h1>
+    <p class="sub" id="mapLV" style="margin-bottom:10px;">ゆうしゃ LV 1</p>
     <div id="chapterList"></div>
   </div>
 
   <div class="overlay hidden" id="clearScreen">
     <div class="hero" id="clearHero">🌀</div>
     <h1 id="clearTitle">たおした！</h1>
-    <p id="clearText"></p>
+    <p id="clearText" style="white-space:pre-line;"></p>
     <button class="start-btn" id="clearBtn">▶ しょうえらびへ</button>
-    <button class="how-btn hidden" id="resetBtn1">▶ さいしょから あそぶ</button>
+    <button class="how-btn hidden" id="resetBtn1">▶ 1周目の LV 1 に もどって あそぶ</button>
   </div>
 
   <div class="overlay hidden" id="resetScreen">
     <div class="hero">🔄</div>
-    <h1 style="font-size:20px;">さいしょから？</h1>
-    <p>クリアの きろくを けして<br>さいしょから あそびます。</p>
-    <button class="start-btn" id="resetYes">けす</button>
+    <h1 style="font-size:20px;">1周目の LV 1 に もどる？</h1>
+    <p>★ と LV は 1周目から に なります。</p>
+    <button class="start-btn" id="resetYes">もどる</button>
     <button class="how-btn" id="resetNo">やめる</button>
   </div>
 
@@ -310,9 +327,9 @@ letter-spacing: 4px; z-index: 20; animation: lvUp 1.8s forwards; pointer-events:
   <div class="rpg-window" id="status">
     <div class="row"><span class="label">ゆうしゃ</span><span class="value" id="levelDisplay">LV 1</span></div>
     <div class="row"><span class="label">ライフ</span><span class="value hearts" id="livesDisplay">♥♥♥</span></div>
-    <div class="row"><span class="label">げきは</span><span class="value" id="progressDisplay">0/2</span></div>
+    <div class="row"><span class="label">こうげき</span><span class="value" id="attackDisplay">2</span></div>
     <div class="row"><span class="label">てき</span><span class="value" id="enemyHpDisplay">HP 1</span></div>
-    <div class="row wide"><span class="label">ボスまで</span><span class="value" id="bossDisplay">&nbsp;</span></div>
+    <div class="row wide"><span class="label">しょう</span><span class="value" id="progressDisplay">&nbsp;</span></div>
   </div>
 
   <div class="rpg-window" id="battle">
@@ -899,7 +916,20 @@ function likeOK(q, m, types) {
 // ---------- 章 ----------
 // 各章：ザコ3体（各1戦、うち1体は逆向き。符号の章は逆向きなし）→ 中ボス（2ダメ、その章の単元を 問題集の 言い回しで）
 // 5章 すべて クリアで トリの ボス（5ダメ、5つの 単元を 問題集の 言い回しで）。章は どこからでも えらべる
-const NORMAL = 3, MID_HP = 2, FINAL_HP = 7;   // さいごの 章は 7つの 単元を 1問ずつ
+const NORMAL = 3, MID_HP = 2, FINAL_HP = 7;   // 中ボスの 問題の 数（はじめに 用意する 数）、さいごの 章は 7つの 単元を 1問ずつ
+// ---------- ダメージ・HP（三角グラフクエストと おなじ） ----------
+// 敵は 攻撃力ほどには つよく ならない（LV が 上がるほど はやく たおせる）。ザコは いつも 1発
+const zakoHP = L => 1 + Math.floor(L / 2);
+const midHP = L => 7 + Math.floor(L / 2);
+const finalHP = L => 34 + L;
+const CRIT = 1 / 8;
+const comboBonus = n => Math.min(Math.max(n - 1, 0), 3);
+// ダメージ：きほん（ザコの 問題 2、逆向き・問題集の 言い回し 3）＋（LV − 1）＋ 苦手の 問題 1 ＋ れんぞく せいかい → 会心の 一撃で 2倍
+function damage(p, L, ev, rng, combo = 0) {
+  const d = (p.kind === 'rev' || p.exam ? 3 : 2) + (L - 1) + (p.target && p.target.lv ? 1 : 0) + comboBonus(combo);
+  const crit = (ev && ev.mastered && ev.mastered.length > 0) || rng() < CRIT;
+  return { d: crit ? d * 2 : d, crit };
+}
 const CHAPTERS = [
   { ch: 1, lv: 1, title: '第1章 角の いち', enemy: { name: 'メグリ', sprite: '🌀' }, boss: { name: 'オオメグリ', sprite: '🌪️' } },
   { ch: 2, lv: 2, title: '第2章 ＋ と −', enemy: { name: 'ウラオモテ', sprite: '🎭' }, boss: { name: 'フゴウノカミ', sprite: '⚖️' } },
@@ -971,7 +1001,7 @@ function record(ctx, p, ok, cls, ms) {
 G.UnitCore = {
   NEW_MODES, TRIPLES, QR, remVals, tRange, qMaxAns, qf, polyStr, PTS, OFF_AXIS, angStr, valStr, valNum, V, cosV, sinV, fnV, signOf, quadrant, solutions, quadsOf,
   arcBounds, arcOf, arcSat, genPrm, build, figKey, judge, classify, describe, masterText, likeOK,
-  CHAPTERS, NORMAL, MID_HP, FINAL_HP, makeSlots, newContext, makeProblem, record, mulberry32, mod24,
+  CHAPTERS, NORMAL, MID_HP, FINAL_HP, zakoHP, midHP, finalHP, CRIT, comboBonus, damage, makeSlots, newContext, makeProblem, record, mulberry32, mod24,
 };
 })(typeof window !== 'undefined' ? window : this);
 </script>
@@ -991,7 +1021,7 @@ const monsterEl = $('monster');
 const optBtns = [...document.querySelectorAll('#controls .opt')];
 
 const state = {
-  ch: 1, slots: [], slotIdx: 0, hp: 1, lives: MAX_LIVES,
+  ch: 1, slots: [], slotIdx: 0, hp: 1, maxHp: 1, lives: MAX_LIVES, combo: 0,
   problem: null,
   sel: { pts: [], quads: [], arcs: [] },   // タップで選んだもの
   choice: null,      // ＋− または ●○（'a' | 'b'）
@@ -1021,22 +1051,33 @@ const tapMode = q => !!q && !q.options && (q.mode === 'pos' || q.mode === 'quad'
 
 // ---------- 表示 ----------
 function renderStatus() {
-  const c = chap(), n = nNormal();
-  $('levelDisplay').textContent = c.final ? 'さいご' : '第' + c.ch + '章';
+  const c = chap(), n = nNormal(), L = heroLV();
+  $('levelDisplay').textContent = 'LV ' + L;
+  $('attackDisplay').textContent = String(attack(L));
   $('livesDisplay').innerHTML = '♥'.repeat(Math.max(0, state.lives)) + '<span class="empty">' + '♡'.repeat(MAX_LIVES - Math.max(0, state.lives)) + '</span>';
-  $('progressDisplay').textContent = atBoss() ? 'ボスせん' : state.slotIdx + '/' + n;
-  $('enemyHpDisplay').textContent = 'HP ' + Math.max(0, state.hp);
-  $('bossDisplay').textContent = atBoss() ? c.boss.name + ' と たたかい中！' : '■'.repeat(state.slotIdx) + '□'.repeat(n - state.slotIdx) + '　あと ' + (n - state.slotIdx) + 'たい';
+  $('enemyHpDisplay').textContent = 'HP ' + Math.max(0, state.hp) + '/' + state.maxHp;
+  const done = Math.min(state.slotIdx, n);
+  $('progressDisplay').textContent = (c.final ? 'さいごの 章' : '第' + c.ch + '章') + '　' +
+    (atBoss() ? c.boss.name + ' と たたかい中！' : '■'.repeat(done) + '□'.repeat(n - done) + ' ボスまで あと ' + (n - done) + 'たい');
   if (state.tut) {
     $('levelDisplay').textContent = 'れんしゅう';
-    $('progressDisplay').textContent = (state.tut.i + 1) + '/' + TUT.length;
+    $('progressDisplay').textContent = 'れんしゅう ' + (state.tut.i + 1) + '/' + TUT.length;
   }
 }
 function renderEnemy() {
-  const c = chap(), e = atBoss() ? c.boss : c.enemy;
+  const c = chap(), boss = atBoss() && !state.tut, e = boss ? c.boss : c.enemy;
   monsterEl.textContent = e.sprite;
-  monsterEl.className = atBoss() ? 'boss' : '';
+  monsterEl.className = boss ? 'boss' : '';
   $('monsterName').textContent = e.name;
+  // ボス戦の あいだは 枠を 赤（さいごの 章は 金）
+  gameEl.classList.toggle('boss-mid', boss && !c.final);
+  gameEl.classList.toggle('boss-final', boss && !!c.final);
+}
+function bossWarn(final) {
+  const el = document.createElement('div');
+  el.className = 'boss-warn' + (final ? ' final' : '');
+  el.textContent = final ? '⚠ BOSS ⚠' : '⚠ 中ボス ⚠';
+  gameEl.appendChild(el); setTimeout(() => el.remove(), 2000);
 }
 function renderProblem() {
   $('problemLabel').textContent = p().label;
@@ -1426,6 +1467,11 @@ function resetInput() {
   state.choice = null; state.opt = -1; state.reveal = false; state.view = 'ans';
 }
 function newProblem() {
+  // ボスは HP が のこる かぎり 出す（中ボスは 同じ 単元、さいごの 章は どれかの 単元）
+  if (state.slotIdx >= state.slots.length) {
+    const c = chap(), lv = c.final ? 1 + Math.floor(rng() * C.FINAL_HP) : c.lv;
+    state.slots.push({ lv, kind: 'fwd', form: lv === 2 ? (rng() < 0.5 ? 'sign' : 'qsign') : undefined, boss: true });
+  }
   state.problem = C.makeProblem(state.slots[state.slotIdx], state.ctx, rng);
   resetInput();
   state.phase = 'play';
@@ -1436,12 +1482,13 @@ function startChapter(ch) {
   state.ch = ch;
   const c = chap();
   state.slots = C.makeSlots(ch, rng, state.ctx);
-  state.slotIdx = 0;
-  state.hp = c.final ? C.FINAL_HP : 1;
+  state.slotIdx = 0; state.combo = 0;
+  state.hp = state.maxHp = c.final ? C.finalHP(heroLV()) : C.zakoHP(heroLV());
   state.lives = MAX_LIVES;
   monsterEl.classList.remove('dying');
   renderEnemy();
   newProblem();
+  if (c.final) bossWarn(true);
   setMessage((c.final ? c.boss.name + 'が あらわれた！\nここからは 問題集の ことばで 出るぞ！' : c.title + '\n' + c.enemy.name + 'が　あらわれた！') + '\n' + hint());
 }
 function answerNow() {
@@ -1464,12 +1511,24 @@ function submit() {
   if (ok) onCorrect(ev); else onWrong(cls);
 }
 function onCorrect(ev) {
-  const c = chap(), e = atBoss() ? c.boss : c.enemy;
-  state.phase = 'busy'; state.reveal = true; state.hp -= 1;
+  const c = chap(), e = atBoss() ? c.boss : c.enemy, q = p();
+  state.combo = (state.combo || 0) + 1;
+  const hit = C.damage(q, heroLV(), ev, rng, state.combo);
+  state.phase = 'busy'; state.reveal = true; state.hp -= hit.d;
+  // さいごの 章は 1周目だけ、すべての 単元を 出しきるまで たおれない
+  let hold = false;
+  if (c.final && loadProg().lap === 1 && state.hp <= 0 && state.slotIdx < C.FINAL_HP - 1) { state.hp = 1; hold = true; }
   draw(); renderControls(); renderStatus();
-  flashScreen(); monsterAnim('hit'); showDamage('-1', '#ffff00');
-  const mastered = ev.mastered.map(t => '◎ ' + C.masterText(t) + ' こくふく！').join('\n');
-  setMessage('せいかい！　' + e.name + 'に　ダメージ！' + (mastered ? '\n' + mastered : ''));
+  flashScreen(); if (hit.crit) setTimeout(flashScreen, 180);
+  monsterAnim('hit'); showDamage('-' + hit.d, hit.crit ? '#ff9900' : '#ffff00');
+  const lines = ['せいかい！　' + e.name + 'に　' + hit.d + ' の ダメージ！'];
+  if (hit.crit) lines.unshift('かいしんの いちげき！');
+  if (q.target && q.target.lv) lines.push('（にがての もんだいに せいかい ＋1）');
+  if (C.comboBonus(state.combo) > 0) lines.push('れんぞく せいかい ×' + state.combo + '（＋' + C.comboBonus(state.combo) + '）');
+  ev.mastered.forEach(t => lines.push('◎ ' + C.masterText(t) + ' こくふく！'));
+  if (hold) lines.push(e.name + '「まだ たおれぬ！」');
+  setMessage(lines.join('\n'));
+  if (hit.crit) { const el = document.createElement('div'); el.className = 'level-up crit'; el.textContent = 'かいしんの いちげき！'; gameEl.appendChild(el); setTimeout(() => el.remove(), 1500); }
   setTimeout(() => {
     state.slotIdx += 1;
     if (state.hp > 0) { newProblem(); setMessage('のこり HP ' + state.hp + '！\n' + hint()); return; }
@@ -1477,73 +1536,107 @@ function onCorrect(ev) {
     setMessage(e.name + 'を　たおした！');
     renderStatus();
     setTimeout(afterDefeat, 1100);
-  }, 1000);
+  }, hit.crit ? 1500 : 1000);
 }
 function afterDefeat() {
-  const c = chap();
+  const c = chap(), L = heroLV();
   monsterEl.classList.remove('dying');
-  if (state.slotIdx >= state.slots.length) { chapterClear(); return; }
+  if (c.final || state.slotIdx > nNormal()) { chapterClear(); return; }   // ボスを たおした
   state.lives = MAX_LIVES;
   if (state.slotIdx === nNormal()) {   // 中ボス
-    state.hp = C.MID_HP;
-    renderEnemy(); newProblem();
+    state.hp = state.maxHp = C.midHP(L);
+    renderEnemy(); newProblem(); bossWarn(false);
     setMessage('中ボス ' + c.boss.name + 'が あらわれた！\nここからは 問題集の ことばで 出るぞ！\n' + hint());
     return;
   }
-  state.hp = 1;
+  state.hp = state.maxHp = C.zakoHP(L);
   renderEnemy(); newProblem();
   setMessage('また ' + c.enemy.name + 'が　あらわれた！\n' + hint());
 }
-// ---------- 章えらび・記録 ----------
-let memClear = {};
-function loadClear() {
-  try {
-    const cl = JSON.parse(localStorage.getItem('tan-i-en-clear') || '{}');
-    // 第6章・第7章を 足す まえの「さいごの 章（6）」の クリアは、いまの さいごの 章（8）へ
-    if (!cl.v8) { if (cl[6]) { cl[FIN] = true; delete cl[6]; } cl.v8 = true; localStorage.setItem('tan-i-en-clear', JSON.stringify(cl)); }
-    return cl;
-  } catch (e) { return memClear; }
-}
-function saveClear(ch) {
-  const cl = loadClear(); cl[ch] = true; memClear = cl;
-  try { localStorage.setItem('tan-i-en-clear', JSON.stringify(cl)); } catch (e) { /* 保存できなくても その回は遊べる */ }
-}
+// ---------- 周回の きろく（グラフクエストと おなじ） ----------
+// lap：何周目か（★は 3つまで、4周目で 👑 マスター）、cur：この周で クリアした 章、gained：LV が 上がった 回数、stars：章ごとの ★
+// LV が 上がるのは「その周で はじめて クリアした 章」だけ
+const MAX_LAP = 3;
 const NORM = C.CHAPTERS.filter(c => !c.final).map(c => c.ch);   // ふつうの 章（1〜7）
 const FIN = C.CHAPTERS.find(c => c.final).ch;                     // さいごの 章
+let memProg = null;
+function newProg() { return { lap: 1, cur: {}, gained: 0, stars: {} }; }
+function loadProg() {
+  try {
+    const raw = localStorage.getItem('tan-i-en-progress');
+    if (raw) return JSON.parse(raw);
+    // 前の版の きろく（クリアした 章）を ひきつぐ。第6・7章を 足す まえの さいごの 章は 6
+    const old = JSON.parse(localStorage.getItem('tan-i-en-clear') || 'null');
+    if (old) {
+      const fin = old.v8 ? old[FIN] : old[6], pr = newProg();
+      NORM.forEach(k => { if (old[k] && !(k === 6 && !old.v8)) { pr.cur[k] = true; pr.gained++; pr.stars[k] = 1; } });
+      if (fin) { pr.stars[FIN] = 1; pr.lap = 2; pr.cur = {}; }
+      saveProg(pr);
+      return pr;
+    }
+  } catch (e) { /* 読めなければ メモリの きろく */ }
+  return memProg || newProg();
+}
+function saveProg(pr) { memProg = pr; try { localStorage.setItem('tan-i-en-progress', JSON.stringify(pr)); } catch (e) { /* 保存できなくても その回は遊べる */ } }
+const heroLV = () => 1 + loadProg().gained;
+const attack = L => L + 1;   // こうげき力 ＝ ザコの 問題の きほんダメージ（2 ＋ LV − 1）
+const isMaster = pr => pr.lap > MAX_LAP;
+const finalOpen = pr => isMaster(pr) || NORM.every(k => pr.cur[k]);
+function starStr(n) { n = Math.min(n, MAX_LAP); return '<span class="stars">' + '★'.repeat(n) + '<span class="dim">' + '☆'.repeat(MAX_LAP - n) + '</span></span>'; }
 function showMap() {
-  const cl = loadClear(), all5 = NORM.every(k => cl[k]);
+  const pr = loadProg(), L = heroLV();
   const items = C.CHAPTERS.map(c => {
-    if (c.final && !all5) return '<button class="chap locked" disabled>🔒 さいごの 章（1〜' + NORM.length + '章を クリアで ひらく）</button>';
-    return '<button class="chap" data-ch="' + c.ch + '">' + (cl[c.ch] ? '✅ ' : '▶ ') + c.title + '<span class="unit">' +
-      (c.final ? 'ボス ' + c.boss.name + '（問題集の ことばで ' + C.FINAL_HP + '問）' : 'ザコ 3体 → 中ボス ' + c.boss.name) + '</span></button>';
-  }).join('') + (cl[FIN] ? '<button class="chap reset" id="resetBtn2">🔄 さいしょから あそぶ<span class="unit">クリアの きろくを けす</span></button>' : '');
+    const st = starStr(pr.stars[c.ch] || 0);
+    const doneNow = c.final ? false : (isMaster(pr) || !!pr.cur[c.ch]);
+    if (c.final && !finalOpen(pr)) return '<button class="chap locked" disabled>🔒 さいごの 章' + st + '<span class="unit">この 周で 1〜' + NORM.length + '章を クリアで ひらく</span></button>';
+    return '<button class="chap" data-ch="' + c.ch + '">' + (doneNow ? '✅ ' : '▶ ') + c.title + st + '<span class="unit">' +
+      (c.final ? 'ボス ' + c.boss.name + '（問題集の ことばで ' + C.FINAL_HP + 'つの 単元）' : 'ザコ 3体 → 中ボス ' + c.boss.name) + '</span></button>';
+  }).join('') + (pr.stars[FIN] ? '<button class="chap reset" id="resetBtn2">🔄 1周目の LV 1 に もどって あそぶ</button>' : '');
+  $('mapLV').textContent = (isMaster(pr) ? '👑 マスター' : pr.lap + '周目') + '　ゆうしゃ LV ' + L + '　こうげき力 ' + attack(L);
   $('chapterList').innerHTML = items;
   $('chapterList').querySelectorAll('.chap[data-ch]').forEach(b => b.addEventListener('click', () => { $('mapScreen').classList.add('hidden'); state.ctx = C.newContext(); startChapter(+b.dataset.ch); }));
-  if (cl[FIN]) $('resetBtn2').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
+  if (pr.stars[FIN]) $('resetBtn2').addEventListener('click', () => $('resetScreen').classList.remove('hidden'));
   $('mapScreen').classList.remove('hidden');
   state.phase = 'idle';
 }
 function chapterClear() {
-  const c = chap();
-  saveClear(c.ch);
+  gameEl.classList.remove('boss-mid', 'boss-final');
+  const c = chap(), pr = loadProg(), before = heroLV();
   state.phase = 'idle';
-  const n = NORM.filter(k => loadClear()[k]).length;
+  const lines = [];
+  if (!c.final) {
+    if (!isMaster(pr) && !pr.cur[c.ch]) {   // この 周で はじめて クリア → LV ＋1、★
+      pr.cur[c.ch] = true; pr.gained += 1; pr.stars[c.ch] = pr.lap;
+      lines.push('LEVEL UP！　LV ' + before + ' → ' + (before + 1) + '　こうげき力 ' + attack(before) + ' → ' + attack(before + 1));
+      showLevelUp();
+    } else if (!isMaster(pr)) lines.push('（この 周では もう クリアずみ。ほかの 章を クリアすると LV が あがる）');
+    const n = NORM.filter(k => pr.cur[k]).length;
+    lines.push(isMaster(pr) ? '👑 マスター' : pr.lap + '周目：クリアした 章 ' + n + '/' + NORM.length);
+    if (n === NORM.length && !isMaster(pr)) lines.push('さいごの 章が ひらいた！');
+  } else {
+    pr.stars[FIN] = Math.min(MAX_LAP, isMaster(pr) ? MAX_LAP : pr.lap);
+    const done = pr.lap;
+    if (!isMaster(pr)) { pr.lap += 1; pr.cur = {}; }
+    lines.push('GAME CLEAR!　' + Math.min(done, MAX_LAP) + '周目 クリア！　えんを めぐりし者よ、その ちえに えいこう あれ。');
+    lines.push(isMaster(pr) ? '👑 ★3 まで あつめた！ マスター！' : 'つぎは ' + pr.lap + '周目。' + NORM.length + 'つの 章を もう いちど クリアしよう（LV も また あがる）');
+  }
+  saveProg(pr);
   $('clearHero').textContent = c.boss.sprite;
   $('clearTitle').textContent = c.boss.name + 'を たおした！';
-  $('clearText').textContent = c.final ? 'GAME CLEAR!　えんを めぐりし者よ、その ちえに えいこう あれ。'
-    : (n === NORM.length && !loadClear()[FIN] ? NORM.length + 'つの 章を クリア！ さいごの 章が ひらいた！' : 'クリアした 章 ' + n + '/' + NORM.length);
+  $('clearText').textContent = lines.join('\n');
   $('resetBtn1').classList.toggle('hidden', !c.final);
   $('clearScreen').classList.remove('hidden');
 }
 function resetAll() {
-  memClear = {};
-  try { localStorage.removeItem('tan-i-en-clear'); localStorage.removeItem('tan-i-en-tut'); } catch (e) { /* 消せなくても その回は最初から */ }
+  memProg = newProg();
+  try { ['tan-i-en-progress', 'tan-i-en-clear', 'tan-i-en-tut'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* 消せなくても その回は最初から */ }
   ['resetScreen', 'clearScreen', 'mapScreen'].forEach(id => $(id).classList.add('hidden'));
   state.ctx = C.newContext(); state.phase = 'idle';
   $('titleScreen').classList.remove('hidden');
 }
 function onWrong(cls) {
   const q = p();
+  state.combo = 0;
   state.lives -= 1; state.phase = 'next'; state.reveal = true; state.view = 'ans';
   draw(); renderControls(); renderStatus();
   monsterAnim('miss-dmg'); showDamage('MISS', '#ff4444');
