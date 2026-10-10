@@ -1098,12 +1098,13 @@ function bossWarn(final) {
   gameEl.appendChild(el); setTimeout(() => el.remove(), 2000);
 }
 // 問題の 文：式の 記号（＝ ＋ − ＜ ≦ など）の まわりでは 改行しない。短い 言い方は 文ごとに 1行に して、はみ出す ときは 字を 小さく
+const PUNC = t => t.replace(/。/g, '．').replace(/、/g, '，');   // 問題文は 教科書と おなじ「，」「．」（「。」が 度の「°」に 見えないように）
 const NBOP = t => t.replace(/ ([＝＋−＜＞≦≧]) /g, '\u00a0$1\u00a0');
 function renderProblem() {
   const q = p(), el = $('problemExpr');
   $('problemLabel').textContent = q.label;
-  if (q.exam) el.innerHTML = mathHTML(NBOP(q.display), true);
-  else el.innerHTML = q.display.split(/(?<=。)/).filter(x => x).map(x => '<span class="nw">' + mathHTML(NBOP(x), true) + '</span>').join('<br>');
+  if (q.exam) el.innerHTML = mathHTML(NBOP(PUNC(q.display)), true);
+  else el.innerHTML = q.display.split(/(?<=。)/).filter(x => x).map(x => '<span class="nw">' + mathHTML(NBOP(PUNC(x)), true) + '</span>').join('<br>');
   el.classList.toggle('exam', !!q.exam);
   el.classList.toggle('long', !q.exam && q.display.length > 18);   // 長い文は 少し小さく
   fitProblem();
