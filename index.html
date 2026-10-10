@@ -113,7 +113,7 @@ font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer;
 #livesDisplay { margin-right: 58px; }   /* 右上の「≡ しょう」と かさならないよう ハートを 左へ */
 @media (max-width: 360px) { #mapBtn .mbt { display: none; } #livesDisplay { margin-right: 26px; } }   /* せまい 画面は「≡」だけ */
 #problem .expr.long { font-size: 15px; }
-#problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; }
+#problem .expr.exam { font-size: 14px; text-align: left; line-height: 1.6; word-break: keep-all; }   /* ことばの 途中で 改行しない（空白で 切る） */
 #ruleBtn { display: block; margin: 3px auto 0; white-space: nowrap; background: #000; color: #aaa; border: 1px solid #666; font-family: inherit; font-size: 10px; padding: 2px 6px; cursor: pointer; z-index: 2; }
 
 #planeWrap { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
@@ -1099,11 +1099,18 @@ function bossWarn(final) {
 }
 // 問題の 文：式の 記号（＝ ＋ − ＜ ≦ など）の まわりでは 改行しない。短い 言い方は 文ごとに 1行に して、はみ出す ときは 字を 小さく
 const PUNC = t => t.replace(/。/g, '．').replace(/、/g, '，');   // 問題文は 教科書と おなじ「，」「．」（「。」が 度の「°」に 見えないように）
+// 問題集の ことばは「条件」と「どうするか」の あいだで 改行：いちばん 後ろの「の とき、」など の あと、なければ 最後の 文の まえ
+function examLines(t) {
+  let i = -1;
+  for (const m of t.matchAll(/(?:の とき|あるとき|範囲で|ついて|グラフで)[、。]/g)) i = m.index + m[0].length;   // 「おく とき」「求める とき」は どうするか の ほう
+  if (i < 0) { const j = t.slice(0, -1).lastIndexOf('。'); if (j >= 0 && !t.startsWith('ただし', j + 1)) i = j + 1; }   // 「ただし」は 切らない
+  return i > 0 && i < t.length ? [t.slice(0, i), t.slice(i)] : [t];
+}
 const NBOP = t => t.replace(/ ([＝＋−＜＞≦≧]) /g, '\u00a0$1\u00a0');
 function renderProblem() {
   const q = p(), el = $('problemExpr');
   $('problemLabel').textContent = q.label;
-  if (q.exam) el.innerHTML = mathHTML(NBOP(PUNC(q.display)), true);
+  if (q.exam) el.innerHTML = examLines(q.display).map(x => mathHTML(NBOP(PUNC(x)), true)).join('<br>');
   else el.innerHTML = q.display.split(/(?<=。)/).filter(x => x).map(x => '<span class="nw">' + mathHTML(NBOP(PUNC(x)), true) + '</span>').join('<br>');
   el.classList.toggle('exam', !!q.exam);
   el.classList.toggle('long', !q.exam && q.display.length > 18);   // 長い文は 少し小さく
