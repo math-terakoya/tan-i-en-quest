@@ -262,6 +262,24 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 .chap .stars { float: right; color: #ffd84a; letter-spacing: 1px; }
 .chap .stars .dim { color: #444; }
 #progressDisplay { letter-spacing: 0; }
+
+/* — 選択肢が 長い とき（実際の 幅を 測って 文字を 小さく → 1列）。列は 中身に 押し広げられない — */
+#controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#controls.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#controls.one { grid-template-columns: minmax(0, 1fr); }
+.key { min-width: 0; max-width: 100%; overflow: hidden; }
+#game, #status, #message, #battle, #problem, #controls { min-width: 0; max-width: 100%; }
+#status .row { min-width: 0; gap: 4px; }
+#status .row .value { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+#message, #problemExpr { overflow-wrap: anywhere; }
+#status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#status .label { white-space: nowrap; }
+#status .row:not(.wide) .value { white-space: nowrap; }
+@media (max-width: 300px) { #status { column-gap: 6px; padding: 4px 6px; } }
+/* 文字が 大きい 設定で 縦に 入りきらない ときは 画面を 縦に スクロール（図は 100px より 小さく しない） */
+#game { overflow-y: auto; overflow-x: hidden; }
+#planeWrap { min-height: 100px; }
+#message { flex-shrink: 1; min-height: 48px; }   /* 縦が 足りない ときは まず メッセージを 小さく（中で スクロール）して ボタンを 画面に のこす */
 </style>
 </head>
 <body>
@@ -1121,9 +1139,10 @@ function renderProblem() {
 function fitProblem() {
   const el = $('problemExpr');
   el.querySelectorAll('.nw').forEach(nw => {
-    nw.style.fontSize = '';
+    nw.style.fontSize = ''; nw.style.whiteSpace = '';
     let size = parseFloat(getComputedStyle(nw).fontSize);
     while (nw.scrollWidth > el.clientWidth && size > 10) { size -= 1; nw.style.fontSize = size + 'px'; }
+    if (nw.scrollWidth > el.clientWidth) nw.style.whiteSpace = 'normal';   // それでも 入らなければ 折り返す
   });
 }
 function show(el, on) { el.classList.toggle('hidden', !on); }
@@ -1167,8 +1186,21 @@ function renderControls() {
   show($('decideBtn'), !next);
   show($('nextBtn'), next);
   $('decideBtn').disabled = !ready();
+  fitOpts();
 }
 // けってい を押せるか
+
+// 選択肢の 文字が ボタンに 入りきらない ときは、文字を 小さく（13px まで）→ それでも 入らなければ 1列に して もう一度
+function fitOpts() {
+  const c = $('controls'), vis = optBtns.filter(b => !b.classList.contains('hidden'));
+  c.classList.remove('one'); optBtns.forEach(b => { b.style.fontSize = ''; });
+  if (!vis.length) return;
+  const over = () => vis.some(b => b.scrollWidth > b.clientWidth + 1);
+  const shrink = min => { let f = parseFloat(getComputedStyle(vis[0]).fontSize); while (over() && f > min) { f -= 1; vis.forEach(b => { b.style.fontSize = f + 'px'; }); } };
+  shrink(13);
+  if (over()) { vis.forEach(b => { b.style.fontSize = ''; }); c.classList.add('one'); shrink(8); }
+}
+window.__fitOpts = fitOpts;
 function ready() {
   const q = p();
   if (!q || state.phase !== 'play') return false;
@@ -1183,6 +1215,7 @@ function setMessage(text) { $('msgText').innerHTML = mathHTML(text, false); $('m
 // ---------- 単位円を描く ----------
 let S = 300, DPR = 1;
 function resizePlane() {
+  fitOpts();
   const size = Math.floor(Math.min(wrap.clientWidth - 12, wrap.clientHeight - 8));
   S = Math.max(120, size);
   DPR = Math.min(window.devicePixelRatio || 1, 3);
