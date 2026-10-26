@@ -1241,12 +1241,12 @@ function fitRuns(root) {   // 図の 幅が 決まって から 測る（まだ 
           c.textContent.split(re).forEach((x, i) => { if (i) pieces.push([]); if (x) pieces[pieces.length - 1].push(document.createTextNode(x)); });
         });
         return pieces.filter(p => p.length); };
-      let ps = cut(/(?<=[，．])/);   // まず「，」「．」の あと、なければ ＝・不等号の 前
-      if (ps.length < 2) ps = cut(/[ \u00a0](?=[＝＜＞≦≧][ \u00a0])/);
-      if (ps.length < 2) ps = cut(/(?<=\))(?=\()/);   // それでも なければ かっこの 積の あいだ
+      let sep = '\u200b', ps = cut(/(?<=[，．])/);   // まず「，」「．」の あと、なければ ＝・不等号の 前
+      if (ps.length < 2) { sep = ' '; ps = cut(/[ \u00a0](?=[＝＜＞≦≧][ \u00a0])/); }
+      if (ps.length < 2) { sep = '\u200b'; ps = cut(/(?<=\))(?=\()/); }   // それでも なければ かっこの 積の あいだ
       if (ps.length > 1) {
         const f = document.createDocumentFragment();
-        ps.forEach((p, i) => { if (i) f.appendChild(document.createTextNode(' ')); const b = newRun(); p.forEach(n => b.appendChild(n)); f.appendChild(b); });
+        ps.forEach((p, i) => { if (i && sep) f.appendChild(document.createTextNode(sep)); const b = newRun(); p.forEach(n => b.appendChild(n)); f.appendChild(b); });   // ＝ の 前は 空白、ほかは 見えない 区切り（そこで 改行できる）
         sp.replaceWith(f); split = true; return;
       }
     }
