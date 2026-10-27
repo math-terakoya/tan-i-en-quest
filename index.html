@@ -269,6 +269,8 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 #controls.one { grid-template-columns: minmax(0, 1fr); }
 .key { min-width: 0; max-width: 100%; overflow: hidden; }
 #game, #status, #message, #battle, #problem, #controls { min-width: 0; max-width: 100%; }
+#game { max-width: 480px; }   /* パソコンでも スマホの 幅で まんなかに（すぐ 上の 行で 100% に 広がらない ように。2026-10-27）*/
+#problem .expr.exam { display: inline-block; max-width: 100%; }   /* 問題集の ことばは かたまりごと まんなかに（行の 頭は そろえる） */
 #status .row { min-width: 0; gap: 4px; }
 #status .row .value { min-width: 0; word-break: keep-all; overflow-wrap: break-word; text-align: right; }   /* ことばの 途中で 折らない（空白で 折る） */
 #message { overflow-wrap: anywhere; }
