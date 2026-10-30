@@ -283,6 +283,15 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 #game { overflow-y: auto; overflow-x: hidden; }
 #planeWrap { min-height: 100px; }
 #message { flex-shrink: 1; min-height: 48px; }   /* 縦が 足りない ときは まず メッセージを 小さく（中で スクロール）して ボタンを 画面に のこす */
+/* 正解の 大きい まる（ほめる ことばつき）：2026-10-30 「正解かどうかが わかりにくい」→ 正解は 大きく ほめる */
+.maru { position: absolute; left: 50%; top: 46%; width: min(64vw, 290px); aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 45; pointer-events: none;
+  border: 16px solid #ff4646; border-radius: 50%; box-shadow: 0 0 26px rgba(255,70,70,0.75), inset 0 0 26px rgba(255,70,70,0.5);
+  display: flex; align-items: center; justify-content: center; animation: maru 1.15s ease-out forwards; background: radial-gradient(circle, rgba(0,0,0,0.72) 55%, rgba(0,0,0,0.35) 100%); }
+.maru span { color: #fff; font-size: 30px; font-weight: bold; white-space: nowrap; letter-spacing: 2px; text-shadow: 3px 3px 0 #a00000, 0 0 14px #ff5050; }
+.maru.gold { border-color: #ffd84a; box-shadow: 0 0 30px rgba(255,216,74,0.85), inset 0 0 26px rgba(255,216,74,0.55); }
+.maru.gold span { text-shadow: 3px 3px 0 #8a5a00, 0 0 14px #ffd84a; }
+@keyframes maru { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; } 22% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+  36% { transform: translate(-50%, -50%) scale(1); } 78% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.04); opacity: 0; } }
 </style>
 </head>
 <body>
@@ -1596,6 +1605,12 @@ function showDamage(text, color) {
   el.style.left = (r.left - g.left + r.width / 2 - 16) + 'px'; el.style.top = (r.top - g.top) + 'px';
   gameEl.appendChild(el); setTimeout(() => el.remove(), 1000);
 }
+const HOME = ['すごい！', 'その とおり！', 'ナイス！', 'さすが！', 'みきわめた！', 'かんぺき！', 'いいね！'];
+function showMaru(text, gold) {   // 正解の 大きい まる
+  const el = document.createElement('div'); el.className = 'maru' + (gold ? ' gold' : '');
+  const s = document.createElement('span'); s.textContent = text || HOME[Math.floor(Math.random() * HOME.length)]; el.appendChild(s);
+  gameEl.appendChild(el); setTimeout(() => el.remove(), 1150);
+}
 function showLevelUp() {
   const el = document.createElement('div');
   el.className = 'level-up'; el.textContent = 'LEVEL UP!';
@@ -1668,6 +1683,7 @@ function onCorrect(ev) {
   draw(); renderControls(); renderStatus();
   flashScreen(); if (hit.crit) setTimeout(flashScreen, 180);
   monsterAnim('hit'); showDamage('-' + hit.d, hit.crit ? '#ff9900' : '#ffff00');
+  showMaru(hit.crit ? 'かいしん！' : !state.hintUsed && (state.combo || 0) >= 3 ? state.combo + ' れんぞく！' : '', hit.crit);   // 正解は 大きい まるで ほめる（かいしんは 金）
   const lines = ['せいかい！　' + e.name + 'に　' + hit.d + ' の ダメージ！'];
   if (hit.crit) lines.unshift('かいしんの いちげき！');
   if (q.target && q.target.lv) lines.push('（にがての もんだいに せいかい ＋1）');
@@ -1675,7 +1691,6 @@ function onCorrect(ev) {
   ev.mastered.forEach(t => lines.push('◎ ' + C.masterText(t) + ' こくふく！'));
   if (hold) lines.push(e.name + '「まだ たおれぬ！」');
   setMessage(lines.join('\n'));
-  if (hit.crit) { const el = document.createElement('div'); el.className = 'level-up crit'; el.textContent = 'かいしんの いちげき！'; gameEl.appendChild(el); setTimeout(() => el.remove(), 1500); }
   setTimeout(() => {
     state.slotIdx += 1;
     if (state.hp > 0) { newProblem(); setMessage('のこり HP ' + state.hp + '！\n' + hint()); return; }
@@ -1915,7 +1930,7 @@ function tutDecide() {
   pulse(null);
   state.tut.hintSeg = false;
   state.reveal = true; state.phase = 'next';
-  renderControls(); draw(); flashScreen(); monsterAnim('hit');
+  renderControls(); draw(); flashScreen(); monsterAnim('hit'); showMaru();
   setMessage('せいかい！　きいろが ただしい ず。\n' + (last ? 'これで れんしゅうは おしまい' : 'つぎの れんしゅうへ'));
   state.onNext = last
     ? () => { state.phase = 'idle'; $('tutDoneScreen').classList.remove('hidden'); }
