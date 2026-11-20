@@ -292,6 +292,13 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
 .maru.gold span { text-shadow: 3px 3px 0 #8a5a00, 0 0 14px #ffd84a; }
 @keyframes maru { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; } 22% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
   36% { transform: translate(-50%, -50%) scale(1); } 78% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.04); opacity: 0; } }
+/* — 文字 大／小（11-20 先生：年配の 同僚から「問題の 文字が 小さい」。大 は ゲーム全体を 同じ 割合で 大きく。えらんだ ほうは この スマホ・パソコンに おぼえる） — */
+.moji { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; color: #aaa; font-size: 13px; letter-spacing: 1px; }
+.moji-btn { background: #000; border: 2px solid #666; color: #aaa; font-family: inherit; font-size: 15px; min-width: 44px; padding: 6px 10px; cursor: pointer; }
+.moji-btn.on { border-color: #ffff00; color: #ffff00; }
+#game.moji-big #controls .key.opt { font-size: 22px; }   /* 大 は 選択肢を さらに 大きく（11-20 先生：選択肢の 文字）。長い ときは fitOpts が 小さく する */
+#game.moji-big #controls.three .key.opt { font-size: 26px; }
+.fr > .de:has(sup) { padding-top: 0.42em; }   /* 分母に 指数が ある ときは 横線から はなす（11-20 先生） */
 </style>
 </head>
 <body>
@@ -304,6 +311,7 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
     <p style="margin-top:24px;">えんの うえの ばしょを みきわめ<br>モンスターを うちたおせ！</p>
     <button class="start-btn" id="startBtn">▶ はじめる</button>
     <button class="how-btn" id="howBtn">？ あそびかた</button>
+    <div class="moji">もじ<button class="moji-btn" data-v="small">小</button><button class="moji-btn" data-v="big">大</button></div>
     <p class="sub" style="margin-top:20px;font-size:10px;">7つの 章（どこからでも）→ さいごの 章</p>
     <p class="sub" style="margin-top:14px;font-size:9px;opacity:0.7;">© 2026 math-terakoya　CC BY-NC-SA 4.0</p>
   </div>
@@ -338,6 +346,7 @@ padding: 14px 0; text-shadow: 3px 3px 0 #400; animation: warn 2s forwards;
     <h1 style="font-size:20px;margin-bottom:6px;">しょうを えらべ</h1>
     <p class="sub" id="mapLV" style="margin-bottom:10px;">ゆうしゃ LV 1</p>
     <div id="chapterList"></div>
+    <div class="moji">もじ<button class="moji-btn" data-v="small">小</button><button class="moji-btn" data-v="big">大</button></div>
   </div>
 
   <div class="overlay hidden" id="clearScreen">
@@ -1296,7 +1305,7 @@ function resizePlane() {
   fitOpts();
   const size = Math.floor(Math.min(wrap.clientWidth - 12, wrap.clientHeight - 8));
   S = Math.max(120, size);
-  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  DPR = Math.min((window.devicePixelRatio || 1) * ZK(), 4);   // 文字 大 でも 図が ぼやけない
   canvas.style.width = S + 'px'; canvas.style.height = S + 'px';
   canvas.width = Math.round(S * DPR); canvas.height = Math.round(S * DPR);
   draw();
@@ -1597,12 +1606,14 @@ canvas.addEventListener('click', e => {
 // ---------- 演出 ----------
 function flashScreen() { const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
 function monsterAnim(cls) { monsterEl.classList.remove('hit', 'miss-dmg'); void monsterEl.offsetWidth; monsterEl.classList.add(cls); }
+// 文字 大（#game に zoom）の ときは、測った 位置（画面の px）と 置く 位置（ゲームの 中の px）の 割合が ちがう。その 割合（11-20）
+function ZK() { const g = document.getElementById('game'); const k = g.getBoundingClientRect().width / (g.offsetWidth || 1); return k > 0.2 ? k : 1; }   // function に して、上の ほうで 呼んでも 使える
 function showDamage(text, color) {
   const el = document.createElement('div');
   el.className = 'dmg-float'; el.textContent = text; el.style.color = color;
   el.style.textShadow = '2px 2px 0 #000, 0 0 8px ' + color;
   const r = monsterEl.getBoundingClientRect(), g = gameEl.getBoundingClientRect();
-  el.style.left = (r.left - g.left + r.width / 2 - 16) + 'px'; el.style.top = (r.top - g.top) + 'px';
+  el.style.left = ((r.left - g.left + r.width / 2) / ZK() - 16) + 'px'; el.style.top = (r.top - g.top) / ZK() + 'px';
   gameEl.appendChild(el); setTimeout(() => el.remove(), 1000);
 }
 const HOME = ['すごい！', 'その とおり！', 'ナイス！', 'さすが！', 'みきわめた！', 'かんぺき！', 'いいね！'];
@@ -1839,8 +1850,8 @@ function placeBtnHint() {
   if (!pulseId) return;
   const el = pulseId.startsWith('opt') ? optBtns[+pulseId[3]] : $(pulseId);
   const b = el.getBoundingClientRect(), g = gameEl.getBoundingClientRect();
-  $('btnHint').style.left = (b.left - g.left + b.width * 0.84) + 'px';
-  $('btnHint').style.top = (b.top - g.top + 26) + 'px';
+  $('btnHint').style.left = (b.left - g.left + b.width * 0.84) / ZK() + 'px';
+  $('btnHint').style.top = ((b.top - g.top) / ZK() + 26) + 'px';
 }
 let blinkTimer = null;
 function startBlink() {
@@ -1866,8 +1877,8 @@ function placeTapHint() {
   if (!state.tut || state.tut.step !== 'tap') return;
   const [x, y] = tutTarget();
   const cr = canvas.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
-  $('tapHint').style.left = (cr.left - wr.left + (0.5 + x * RAD) * cr.width) + 'px';
-  $('tapHint').style.top = (cr.top - wr.top + (0.5 - y * RAD) * cr.height) + 'px';
+  $('tapHint').style.left = (cr.left - wr.left + (0.5 + x * RAD) * cr.width) / ZK() + 'px';
+  $('tapHint').style.top = (cr.top - wr.top + (0.5 - y * RAD) * cr.height) / ZK() + 'px';
 }
 function startTutorial() {
   state.tut = { i: 0, step: 'tap' };
@@ -2013,6 +2024,35 @@ renderStatus(); renderEnemy(); renderControls();
   };
   new MutationObserver(fit).observe(el, { childList: true, characterData: true, subtree: true });
   window.addEventListener('resize', fit); fit();
+})();
+</script>
+<script>
+// 文字 大／小。大 は #game に zoom を かけ、たて・よこは 割り戻して 画面に ちょうど 入れる（vh は 使わず px で 入れる）
+(() => {
+  const KEY = 'mt-moji', g = document.getElementById('game');
+  let big = false, busy = false;
+  try { big = localStorage.getItem(KEY) === 'big'; } catch (e) {}
+  const apply = () => {
+    if (busy) return; busy = true;
+    const W = innerWidth, H = innerHeight;
+    if (!big) { g.style.zoom = ''; g.style.width = ''; g.style.maxWidth = ''; g.style.height = ''; g.style.maxHeight = ''; }
+    else {
+      const z = W >= 600 ? Math.max(1.1, Math.min(1.6, H / 680, W / 480)) : (H >= 640 ? 1.15 : 1);   // たての みじかい スマホは 大きく しない（下が はみ出す）
+      g.style.zoom = z; g.style.maxWidth = 'none'; g.style.maxHeight = 'none';
+      g.style.width = Math.min(480, W / z) + 'px'; g.style.height = (H / z) + 'px';
+    }
+    g.classList.toggle('moji-big', big && W >= 600);   // 選択肢を さらに 大きく するのは 広い 画面だけ（スマホは 下が はみ出す）
+    document.querySelectorAll('.moji-btn').forEach(b => b.classList.toggle('on', (b.dataset.v === 'big') === big));
+    window.dispatchEvent(new Event('resize'));
+    busy = false;
+  };
+  document.querySelectorAll('.moji-btn').forEach(b => b.addEventListener('click', () => {
+    big = b.dataset.v === 'big';
+    try { localStorage.setItem(KEY, big ? 'big' : 'small'); } catch (e) {}
+    apply();
+  }));
+  window.addEventListener('resize', apply);
+  apply();
 })();
 </script>
 </body>
